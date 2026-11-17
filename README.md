@@ -1,76 +1,75 @@
-# Un plan, dos recorridos
+# Nima · One plan, two journeys
 
-Un plan financiero lo recibe una pareja, pero cada uno lo lee por su lado y nada pasa hasta que se ponen de acuerdo.
-Esta app le cuenta el plan a cada uno a su manera, les hace decidir por separado qué va primero,
-y les enseña dónde coinciden y cuál es su primer paso.
+A financial plan reaches a couple, but each of them reads it alone, and nothing happens until they agree.
+Nima tells the plan to each partner in their own way, has them decide separately what goes first,
+then shows them where they agree and what their first step is.
 
-Hackathon Sherpas x UPV Sigma Data Club, noviembre de 2026. (Nombre provisional.)
+Sherpas x UPV Sigma Data Club hackathon, November 2026. Case: Timothy and Melanie Weah.
 
-## Cómo funciona
+## How it works
 
-1. **¿Coincidiréis?** Desde la primera pantalla, el gancho es el encuentro con la pareja.
-2. **Qué te preocupa.** Cada uno lo responde por separado. El plan no lo sabe: nadie se lo había preguntado.
-3. **Tres cosas que tienes que saber**, un dato por pantalla, escritas por la IA con los datos de esa persona.
-4. **¿Qué va primero?** Cada uno ordena los cuatro frentes abiertos del plan.
-5. **El encuentro.** Los dos órdenes lado a lado, lo que dice el plan sobre ellos, y un primer paso
-   con una parte para cada uno: qué hacer, cuánto cuesta si el plan lo sabe, y qué preguntar al asesor.
-6. **Otro día.** ¿Has hecho tu parte? Qué ha hecho el otro y qué toca ahora.
-7. **Resumen para el asesor.** Qué preocupa a cada uno, qué pondría primero y dónde no coinciden.
+**Journey** (each partner, on their own phone)
+1. **Will you two agree?** The hook, from the first screen, is meeting your partner.
+2. **What worries you most?** The plan doesn't know: nobody asked.
+3. **Three things to know**, one fact per screen, about their worry and what is in their own name.
+4. **What goes first?** Each ranks the plan's four open fronts, without seeing the other's answer.
+5. **The meeting.** Both rankings side by side, what the plan says moves their score,
+   and a first step with a part for each of them: what to do, what it costs, what to ask the advisor.
 
-## Cómo arrancarlo
+**Road.** The family's milestones from the plan, and a time slider: what Nima says on day 0, day 3, day 30.
+On day 3 it asks "did you do your part?", shows what the partner has done, and if not, what stopped them.
 
-Hace falta Python 3.10 o posterior.
+**Ask.** Prepared questions, or anything else. Every number in an answer is checked against the plan.
+
+**Advisor.** What each partner worries about, what they put first, where they differ, and their open questions.
+The advisor can spend the meeting on decisions instead of explaining the plan.
+
+## How to run it
+
+Python 3.10 or later.
 
 ```bash
 pip install -r requirements.txt
 python app.py
 ```
 
-Abre http://localhost:5000. Para verlo en el móvil, conéctalo a la misma wifi y abre `http://<IP de tu ordenador>:5000`.
+Open http://localhost:5000. To try it on a phone, use the same wifi and open `http://<your computer's IP>:5000`.
 
-Para usar la IA, copia `.env.example` como `.env` y rellena `TEAM_KEY`.
-Sin clave la app funciona igual, con los textos fijos del guion.
+The AI needs the team key: copy `.env.example` to `.env` and fill in `TEAM_KEY`.
+Without a key everything works except free questions and "Something else", which go to the advisor.
 
-## Cómo probarlo en dos minutos
+## Try it in two minutes
 
-1. Entra como **Timothy**, responde y ordena tus prioridades. Te dirá que falta Melanie.
-2. Vuelve al inicio y entra como **Melanie**. Al ordenar verás el encuentro y el primer paso.
-3. Abre **Resumen del asesor** desde el inicio.
-4. En el inicio, elige **3 días después** antes de entrar, para ver qué pasa cuando vuelven.
-5. **Reiniciar la demo** borra todo.
+1. Open the app as **Timothy**, pick a worry, read the three screens and rank the four fronts.
+2. Go back (top right, "switch") and open it as **Melanie**. When she ranks, you see the meeting.
+3. Open **Road** and move the slider to Day 3.
+4. Open **Advisor**.
+5. "Reset the demo" (home screen or Advisor) clears everything.
 
-## Qué hay en cada archivo
+## How we use AI, and how it never invents a number
 
-| Archivo | Qué hace |
+- **What we can predict, we write ourselves.** The worry screens and fronts are in `scenes/`, checked against the plan.
+- **What we can't predict, the AI writes:** screens for a worry the person types ("Something else"),
+  and answers to free questions in "Ask Nima". Model: `gpt-5-mini` through the hackathon proxy.
+- **Every number the AI writes is checked against the plan** (`ai.py`, `check_numbers`). If one isn't there,
+  the answer is not shown: the question goes to the advisor, or our own screens are used.
+- **Scores are never written by hand:** 60, 62, 73 and 78 are read from `score.top_moves` and
+  `score.combined_moves` in the plan.
+
+## Files
+
+| File | What it does |
 |---|---|
-| `scenes/timothy-melanie-weah.json` | El guion: los cuatro frentes, las tareas de cada uno y los textos fijos de reserva |
-| `story.py` | La lógica: qué ve cada uno, el encuentro, el orden conjunto, el primer paso, el resumen del asesor |
-| `ai.py` | La IA: qué se le envía al modelo, y la comprobación de que no inventa cifras |
-| `app.py` | El servidor: recibe las peticiones del navegador y llama a `story.py` y `ai.py` |
-| `probar_ia.py` | Para probar la IA desde la terminal y comparar modelos |
-| `static/app.js` | Pinta las pantallas. No decide nada |
-| `static/style.css` | Colores, tipografía y animaciones. Las variables del principio cambian todo el aspecto |
-| `templates/advisor.html` | La página del resumen para el asesor |
-| `cases/` | Los planes de Sherpas, tal cual vienen en el repo del hackathon |
-| `data/state.json` | Lo que ha hecho cada persona. Se crea solo y no se sube a GitHub |
+| `scenes/timothy-melanie-weah.json` | Our script: every text the family reads. Change texts here |
+| `story.py` | The logic: journey, meeting, joint order, first step, road, advisor summary |
+| `ai.py` | The AI and the number check |
+| `app.py` | The server: receives requests from the browser and calls `story.py` and `ai.py` |
+| `static/app.js` | Draws the screens. Decides nothing |
+| `static/style.css` | Colours, type and animations. The variables at the top restyle everything |
+| `probar_ia.py` | Try the AI from the terminal |
+| `cases/` | The Sherpas plans, as they come in the hackathon repo |
+| `data/state.json` | What each person has done. Created automatically, not uploaded |
 
-## Cómo usamos la IA, y cómo evitamos que invente
+## Designed for couples
 
-- Al responder qué le preocupa, el servidor envía al modelo el plan de la familia y los datos de esa persona,
-  y le pide tres pantallas. Es una llamada por persona.
-- **Cada cifra que escribe el modelo se comprueba contra el plan.** Si aparece una que no está, se descarta la respuesta.
-- Si el modelo falla, tarda demasiado o no hay clave, se usan los textos fijos. La app nunca se queda en blanco.
-- Las notas (60, 62, 73, 78) no pasan por el modelo: se leen de `score.top_moves` y `score.combined_moves` del plan.
-- Las dudas se responden solo con el plan. Si el plan no lo calcula (el precio de un seguro), se apunta para el asesor.
-
-Para probar la IA sin abrir la app: `python probar_ia.py timothy card`.
-
-## Para quién está diseñado
-
-Para parejas. Con una persona sola, el encuentro sería con el propio plan: su orden frente a lo que más mueve su nota.
-
-## Añadir otra familia
-
-1. Crear `scenes/<caso>.json` con la misma estructura que el de los Weah.
-2. En cada frente, `move` tiene que ser el título exacto de un movimiento de `score.top_moves` de esa familia.
-3. Cambiar `CASE` al principio de `story.py`.
+With one person, the meeting would be with the plan itself: their order against what moves their score most.

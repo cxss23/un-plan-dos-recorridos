@@ -1,9 +1,9 @@
-"""Lógica de la app: un plan, dos recorridos.
+"""The app's logic: one plan, two journeys.
 
-Aquí vive todo lo que no es pintar pantallas: qué ve cada persona, cómo se
-comparan los dos órdenes, cuál es el primer paso y qué va al resumen del asesor.
+Everything that isn't drawing screens lives here: what each person sees, how the two
+rankings are compared, the first step, the road, and the advisor summary.
 
-Las notas NO están escritas a mano: se leen del plan (cases/<caso>/financial-health.json).
+Scores are NOT written by hand: they are read from the plan (cases/<case>/financial-health.json).
 """
 import json
 import threading
@@ -15,15 +15,15 @@ STATE_FILE = BASE / "data" / "state.json"
 _lock = threading.Lock()
 
 
-# ---------- Datos: guion y plan ----------
+# ---------- Data: our script and Sherpas' plan ----------
 
 def load_scenes():
-    """El guion: textos, frentes y tareas. Se edita en scenes/<caso>.json."""
+    """Our script: texts, fronts and tasks. Edit scenes/<case>.json to change any text."""
     return json.loads((BASE / "scenes" / f"{CASE}.json").read_text(encoding="utf-8"))
 
 
 def load_plan():
-    """El plan de Sherpas tal cual viene en el repo del hackathon."""
+    """The Sherpas plan, exactly as it comes in the hackathon repo."""
     return json.loads((BASE / "cases" / CASE / "financial-health.json").read_text(encoding="utf-8"))
 
 
@@ -31,16 +31,11 @@ def fronts_by_id():
     return {f["id"]: f for f in load_scenes()["fronts"]}
 
 
-def lower_first(text):
-    """'La tarjeta' -> 'la tarjeta', para usar el título dentro de una frase."""
-    return text[0].lower() + text[1:]
-
-
-# ---------- Estado: lo que ha hecho cada persona ----------
+# ---------- State: what each person has done ----------
 
 def _empty_person():
-    return {"worry": None, "worry_text": "", "order": [], "seen": [], "details": [],
-            "questions": [], "ai_scenes": None, "ai_note": ""}
+    return {"worry": None, "worry_text": "", "screens": None, "screens_by": "",
+            "order": [], "seen": [], "details": [], "questions": []}
 
 
 def _empty_state():
@@ -56,12 +51,12 @@ def read_state():
 
 
 def update_state(change):
-    """Lee el estado, aplica la función `change(state)` y lo guarda."""
+    """Read the state, apply `change(state)` and save it."""
     with _lock:
         state = read_state()
         change(state)
         STATE_FILE.parent.mkdir(exist_ok=True)
-        # Se escribe en un archivo temporal y se cambia de golpe, para que nadie lea el archivo a medias.
+        # Write to a temporary file and swap it in, so nobody reads a half-written file.
         temp = STATE_FILE.with_suffix(".tmp")
         temp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
         temp.replace(STATE_FILE)
@@ -80,12 +75,16 @@ def partner_of(person):
     return partner, scenes["people"][partner]["name"]
 
 
-# ---------- Notas: siempre desde el plan ----------
+def both_ranked():
+    return all(p["order"] for p in read_state()["people"].values())
+
+
+# ---------- Scores: always from the plan ----------
 
 def score_for(front_ids):
-    """Nota del plan si se hacen esos frentes, p. ej. {"card", "life"}.
+    """The plan's score if these fronts are done, e.g. {"card", "life"}.
 
-    Los frentes sin movimiento en el plan (la universidad) no cambian la nota.
+    Fronts with no move in the plan (college) don't change the score.
     """
     score = load_plan()["score"]
     fronts = fronts_by_id()
@@ -100,62 +99,66 @@ def score_for(front_ids):
     for combo in score["combined_moves"]:
         if set(combo["moves"]) == moves:
             return combo["score_after"]
-    raise ValueError(f"El plan no trae nota para esta combinación: {sorted(moves)}")
+    raise ValueError(f"The plan has no score for this combination: {sorted(moves)}")
 
 
 def best_partner(front_id):
-    """El otro frente que, junto con este, deja la nota más alta."""
+    """The other front that, together with this one, gives the highest score."""
     fronts = fronts_by_id()
     others = [f for f in fronts if f != front_id and fronts[f].get("move")]
     best = max(others, key=lambda other: score_for({front_id, other}))
     return best, score_for({front_id, best})
 
 
-# ---------- La historia de cada persona ----------
+def score_ladder():
+    """The four scores shown at the meeting: today, card, card + life, all three."""
+    return [
+        {"label": "Today", "score": score_for(set())},
+        {"label": "Pay $6,800 on the card", "score": score_for({"card"})},
+        {"label": "Card and life cover", "score": score_for({"card", "life"})},
+        {"label": "Add the umbrella too", "score": score_for({"card", "life", "umbrella"})},
+    ]
 
-def personal_scenes(person):
-    """Las tres pantallas personales: las que escribió la IA, o las fijas de reserva."""
-    scenes = load_scenes()
-    me = read_state()["people"][person]
-    cards = me["ai_scenes"] or scenes["personal"][person]
-    return [{**card, "intro": scenes["personal_intro"]} if n == 0 else card for n, card in enumerate(cards)]
 
-
-def build_story(person, day=0):
-    """Lista de pantallas, en orden, para una persona. `day` son los días que han pasado."""
-    scenes = load_scenes()
-    if day > 0:
-        story = list(scenes["later"]["dated"]) if day >= 30 else []
-        story.append({"id": "L1", "type": "checkin", "dynamic": True})
-        story.append({"id": "L2", "type": "step", "dynamic": True, "which": 1})
-        return story
-
-    rank = {**scenes["rank"], "fronts": [{"id": f["id"], "title": f["title"], "fact": f["fact"]}
-                                         for f in scenes["fronts"]]}
-    return ([{"id": "I0", "type": "intro", "dynamic": True}, scenes["question"]]
-            + personal_scenes(person)
-            + [rank,
-               {"id": "E1", "type": "encounter", "dynamic": True},
-               {"id": "E2", "type": "step", "dynamic": True, "which": 0}])
-
+# ---------- Each person's journey ----------
 
 def intro(person):
-    """Primera pantalla: el gancho es el encuentro con la pareja."""
     scenes = load_scenes()
     partner, partner_name = partner_of(person)
-    partner_ready = bool(read_state()["people"][partner]["order"])
-    text = scenes["intro"]["second" if partner_ready else "first"].format(partner=partner_name)
-    return {"kicker": scenes["intro"]["kicker"], "text": text, "sub": scenes["intro"]["sub"]}
+    ready = bool(read_state()["people"][partner]["order"])
+    return scenes["intro"]["second" if ready else "first"].format(partner=partner_name)
 
 
-# ---------- El encuentro ----------
+def fixed_screens(person, worry):
+    """Three screens written by us: one about the worry, then two about what is theirs."""
+    scenes = load_scenes()
+    personal = scenes["personal"][person]
+    first_id = scenes["worry_screens"].get(worry)
+    if first_id is None:                       # "something else" with no AI: just their own screens
+        return personal[:3]
+    first = next((s for s in personal if s["id"] == first_id), None) or {"id": first_id, **scenes["screens"][first_id]}
+    rest = [s for s in personal if s["id"] != first["id"]]
+    return [first] + rest[:2]
 
-def both_ranked():
-    return all(p["order"] for p in read_state()["people"].values())
 
+def me(person):
+    """Everything the journey needs to pick up where this person left off."""
+    state = read_state()
+    mine = state["people"][person]
+    return {
+        "name": load_scenes()["people"][person]["name"],
+        "intro": intro(person),
+        "worry": mine["worry"],
+        "screens": mine["screens"],
+        "screens_by": mine["screens_by"],
+        "order": mine["order"],
+    }
+
+
+# ---------- The meeting ----------
 
 def joint_order():
-    """Orden conjunto: suma las posiciones de los dos. En empate, manda el orden del guion."""
+    """Joint order: adds up both positions. On a tie, the script's priority wins."""
     scenes = load_scenes()
     orders = [p["order"] for p in read_state()["people"].values()]
     priority = scenes["front_priority"]
@@ -163,130 +166,149 @@ def joint_order():
 
 
 def insight(first_a, first_b):
-    """Qué dice el plan sobre lo que cada uno ha puesto primero."""
+    """What the plan says about what each of them put first."""
     fronts = fronts_by_id()
     base = score_for(set())
-    name = lambda f: lower_first(fronts[f]["title"])
+    name = lambda f: fronts[f]["short"]
 
     if first_a == first_b:
         front = fronts[first_a]
         if not front.get("move"):
-            return front["no_score_note"]
+            return "You both start in the same place. " + front["no_score_note"]
         alone = score_for({first_a})
         other, together = best_partner(first_a)
         if alone > base:
-            return (f"Solo con eso, la nota de vuestro plan pasa de {base} a {alone}. "
-                    f"Y junto con {name(other)}, llega a {together}.")
-        return (f"Con eso solo, la nota de vuestro plan sigue en {base}. "
-                f"Junto con {name(other)}, sube a {together}.")
+            return (f"You both start in the same place. On its own it takes your score from {base} to {alone}, "
+                    f"and together with {name(other)} it reaches {together}.")
+        return (f"You both start in the same place. On its own your score stays at {base}. "
+                f"Together with {name(other)} it rises to {together}.")
 
     movable = [f for f in (first_a, first_b) if fronts[f].get("move")]
     if len(movable) == 2:
         a, b, both = score_for({first_a}), score_for({first_b}), score_for({first_a, first_b})
         if both > max(a, b):
-            return (f"Y no tenéis que elegir. Con solo {name(first_a)}, la nota de vuestro plan queda en {a}; "
-                    f"con solo {name(first_b)}, en {b}. Con las dos cosas, sube de {base} a {both}.")
-        # Juntas no suman más: se enseña qué otro frente sí movería la nota.
+            return (f"You start in different places, and you don't have to choose. With only {name(first_a)} "
+                    f"your score is {a}; with only {name(first_b)}, {b}. Do both and it goes from {base} to {both}.")
         front = max((first_a, first_b), key=lambda f: best_partner(f)[1])
         other, together = best_partner(front)
-        return (f"Con solo {name(first_a)}, la nota de vuestro plan queda en {a}; "
-                f"con solo {name(first_b)}, en {b}; con las dos cosas, en {both}. "
-                f"Añadiendo {name(other)} a {name(front)}, sube a {together}.")
+        return (f"You start in different places. Together they leave your score at {both}. "
+                f"What moves it is {name(front)} with {name(other)}: {together}.")
     notes = [fronts[f]["no_score_note"] for f in (first_a, first_b) if not fronts[f].get("move")]
     if movable:
-        notes.append(f"Con {name(movable[0])}, la nota de vuestro plan queda en {score_for({movable[0]})}.")
-    return " ".join(notes)
+        notes.append(f"With {name(movable[0])}, your score goes to {score_for({movable[0]})}.")
+    return "You start in different places. " + " ".join(notes)
 
 
-def encounter(person):
-    """La pantalla central: espera al otro, o descubre los dos órdenes."""
+def meeting(person):
+    """The central screen: wait for the partner, or reveal both rankings."""
     state = read_state()
     partner, partner_name = partner_of(person)
     if not both_ranked():
-        return {"waiting": True, "partner": partner, "partner_name": partner_name,
-                "text": f"Tu orden está guardado. Falta {partner_name}."}
+        return {"waiting": True, "partner": partner, "partner_name": partner_name}
 
     fronts = fronts_by_id()
     mine, theirs = state["people"][person]["order"], state["people"][partner]["order"]
-    rows = [{"position": n + 1, "mine": fronts[a]["title"], "theirs": fronts[b]["title"], "match": a == b}
-            for n, (a, b) in enumerate(zip(mine, theirs))]
-    if mine[0] == theirs[0]:
-        text = f"Los dos habéis puesto primero {lower_first(fronts[mine[0]]['title'])}."
-    else:
-        text = (f"No habéis puesto lo mismo primero. Tú, {lower_first(fronts[mine[0]]['title'])}. "
-                f"{partner_name}, {lower_first(fronts[theirs[0]]['title'])}.")
-    return {"waiting": False, "partner_name": partner_name, "text": text, "rows": rows,
-            "matches": sum(r["match"] for r in rows), "insight": insight(mine[0], theirs[0])}
+    return {
+        "waiting": False,
+        "name": load_scenes()["people"][person]["name"],
+        "partner_name": partner_name,
+        "mine": [fronts[f]["title"] for f in mine],
+        "theirs": [fronts[f]["title"] for f in theirs],
+        "same": [a == b for a, b in zip(mine, theirs)],
+        "insight": insight(mine[0], theirs[0]),
+        "ladder": score_ladder(),
+        "step": step(person, 0),
+        "next": [step(person, n) for n in range(1, len(fronts))],
+    }
 
 
 def step(person, which=0):
-    """Ficha de un paso: qué hacer, la parte de cada uno, cuánto cuesta y qué preguntar."""
-    partner, partner_name = partner_of(person)
+    """A step card: what to do, each person's part, what it costs and what to ask."""
     if not both_ranked():
-        return {"waiting": True, "partner": partner, "partner_name": partner_name,
-                "text": f"Vuestro primer paso sale cuando {partner_name} ordene lo suyo."}
-    fronts = fronts_by_id()
-    order = joint_order()
-    front = fronts[order[which]]
-    following = fronts[order[which + 1]]["title"] if which + 1 < len(order) else None
+        return None
+    partner, partner_name = partner_of(person)
+    front = fronts_by_id()[joint_order()[which]]
     return {
-        "waiting": False,
-        "kicker": "Vuestro primer paso" if which == 0 else "Lo siguiente",
-        "title": front["title"],
+        "front": front["id"],
         "do": front["do"],
         "my_task": front["tasks"][person],
         "partner_task": front["tasks"][partner],
         "partner_name": partner_name,
         "cost": front["cost"],
         "ask": front["ask"],
-        "detail": front["detail"],
-        "following": following,
-        "with_date": which == 0,
+        "source": front["source"],
         "reminder": read_state()["household"]["reminder"],
     }
 
 
-# ---------- Cuando vuelven otro día ----------
+# ---------- The road and the days after ----------
 
 def checkin(person):
-    """¿Has hecho tu parte? Y qué ha hecho el otro."""
+    """Did you do your part? And what has the other one done?"""
     scenes = load_scenes()
     state = read_state()
     partner, partner_name = partner_of(person)
-    if not both_ranked():
-        return {"ready": False, "text": f"Todavía no hay primer paso: falta que {partner_name} y tú ordenéis lo vuestro."}
+    first = step(person, 0)
+    if not first:
+        return {"ready": False, "text": f"There is no first step yet: you and {partner_name} both need to rank."}
 
-    fronts = fronts_by_id()
-    front_id = joint_order()[0]
-    front = fronts[front_id]
     done = state["household"]["done"]
     mine, theirs = done.get(person), done.get(partner)
-    partner_line = {True: f"{partner_name} ya ha hecho su parte.",
-                    False: f"{partner_name} todavía no ha hecho su parte.",
-                    None: f"{partner_name} aún no ha contestado."}[theirs]
+    partner_line = {True: f"{partner_name} has already done their part.",
+                    False: f"{partner_name} hasn't done their part yet.",
+                    None: f"{partner_name} hasn't answered yet."}[theirs]
 
     message = None
     if mine and theirs:
-        message = "Hecho entre los dos."
-        if front.get("move"):
-            base, after = score_for(set()), score_for({front_id})
-            if after > base:
-                message += f" Cuando vuestro asesor actualice el plan, la nota pasa de {base} a {after}."
-            else:
-                other, together = best_partner(front_id)
-                message += (f" La nota aún no se mueve: falta {lower_first(fronts[other]['title'])}. "
-                            f"Con las dos cosas, sube a {together}.")
+        message = "Done, together."
+        base, after = score_for(set()), score_for({first["front"]})
+        if after > base:
+            message += f" When your advisor updates the plan, your score goes from {base} to {after}."
+        elif fronts_by_id()[first["front"]].get("move"):
+            other, together = best_partner(first["front"])
+            message += f" Your score doesn't move yet: {fronts_by_id()[other]['short']} is missing. With both, it reaches {together}."
     elif mine:
-        message = f"Tu parte está hecha. Falta la de {partner_name}."
-    elif mine is False and state["household"]["blockers"].get(person):
-        message = scenes["later"]["blocker_thanks"]
+        message = f"Your part is done. Now it's {partner_name}'s turn."
+    elif mine is False:
+        blocker = state["household"]["blockers"].get(person)
+        message = (scenes["later"]["blocker_thanks"] if blocker
+                   else scenes["later"]["smaller"].format(task=first["my_task"].lower()))
 
-    return {"ready": True, "title": front["title"], "text": "¿Has hecho tu parte?", "task": front["tasks"][person],
-            "partner_line": partner_line, "answered": mine, "message": message,
-            "blockers": scenes["later"]["blockers"]}
+    return {"ready": True, "task": first["my_task"], "partner_line": partner_line,
+            "answered": mine, "blocked": bool(state["household"]["blockers"].get(person)),
+            "message": message, "blockers": scenes["later"]["blockers"]}
 
 
-# ---------- Resumen para el asesor ----------
+def road(person):
+    """Milestones from the plan, plus what Nima says at each point in time: every step, in the couple's order."""
+    scenes = load_scenes()
+    if not both_ranked():
+        waiting = {"kind": "text", "text": "Rank what goes first, and your steps will appear here."}
+        return {"milestones": scenes["road"], "source": scenes["road_source"],
+                "points": [{"label": "Today", **waiting}]}
+
+    steps = [step(person, n) for n in range(len(fronts_by_id()))]
+    def step_point(label, n, intro):
+        s = steps[n]
+        return {"label": label, "kind": "step", "intro": intro, "do": s["do"], "my_task": s["my_task"],
+                "partner_task": s["partner_task"], "partner_name": s["partner_name"],
+                "cost": s["cost"], "ask": s["ask"]}
+
+    return {
+        "milestones": scenes["road"],
+        "source": scenes["road_source"],
+        "points": [
+            step_point("Today", 0, "Your first step. Pick a day to do your part."),
+            {"label": "Day 3", "kind": "checkin"},
+            step_point("Day 30", 1, "Step 2. If step 1 is done, this is next."),
+            {"label": "Jan 2027", "kind": "text", "text": scenes["jan_2027"]},
+            step_point("Day 60", 2, "Step 3."),
+            step_point("Day 90", 3, "Step 4, the last one in your order."),
+        ],
+    }
+
+
+# ---------- Advisor summary ----------
 
 def advisor_summary():
     scenes = load_scenes()
@@ -298,34 +320,52 @@ def advisor_summary():
     people = []
     for pid, info in scenes["people"].items():
         p = state["people"][pid]
-        cards = (p["ai_scenes"] or []) + scenes["personal"][pid]
-        titles = {c["id"]: c["kicker"] for c in cards} | {f["id"]: f["title"] for f in scenes["fronts"]}
         people.append({
             "name": info["name"],
-            "worry": worries.get(p["worry"]),
-            "worry_text": p["worry_text"],
+            "worry": p["worry_text"] or worries.get(p["worry"]) or "Not answered yet",
+            "first": fronts[p["order"][0]]["title"] if p["order"] else "Not ranked yet",
             "order": [fronts[f]["title"] for f in p["order"]],
-            "seen": len(p["seen"]),
-            "details": [titles.get(s, s) for s in p["details"]],
+            "details": len(p["details"]),
             "questions": p["questions"],
             "done": state["household"]["done"].get(pid),
             "blocker": blockers.get(state["household"]["blockers"].get(pid)),
-            "written_by": "IA" if p["ai_scenes"] else "texto fijo",
         })
 
     ready = both_ranked()
-    first = fronts[joint_order()[0]] if ready else None
-    rows = []
+    differ = []
     if ready:
-        orders = [p["order"] for p in people]
-        rows = [{"position": n + 1, "cells": list(cells), "match": len(set(cells)) == 1}
-                for n, cells in enumerate(zip(*orders))]
+        a, b = (state["people"][p]["order"] for p in scenes["people"])
+        names = [info["name"] for info in scenes["people"].values()]
+        if a[0] != b[0]:
+            differ.append(f"{names[0]} starts with {fronts[a[0]]['short']}, {names[1]} with "
+                          f"{fronts[b[0]]['short']}. Spend the meeting here.")
+        for n, (x, y) in enumerate(zip(a, b)):
+            if n and x != y:
+                differ.append(f"Position {n + 1}: {fronts[x]['short']} versus {fronts[y]['short']}.")
+    first = step(next(iter(scenes["people"])), 0) if ready else None
     return {
         "family": scenes["family"],
         "people": people,
         "ready": ready,
-        "rows": rows,
+        "differ": differ,
         "first": first,
-        "score": {"before": score_for(set()), "after": score_for({first["id"]}) if first else None},
         "reminder": state["household"]["reminder"],
     }
+
+
+def advisor_note():
+    """Nima's note for the advisor. Written once, and again only when something the couple did changes."""
+    import hashlib
+    import ai                                     # here, to avoid a circular import
+    summary = advisor_summary()
+    if not summary["ready"]:
+        return {"note": None, "reason": "waiting for both to rank"}
+    key = hashlib.md5(json.dumps(summary, sort_keys=True).encode()).hexdigest()
+    saved = read_state()["household"].get("advisor_note") or {}
+    if saved.get("key") == key:
+        return {"note": saved["note"], "reason": "saved"}
+    note, reason = ai.advisor_note(summary, score_ladder())
+    print(f"[AI] advisor note: {reason}")         # shows in the terminal where the server runs
+    if note:
+        update_state(lambda s: s["household"].update({"advisor_note": {"key": key, "note": note}}))
+    return {"note": note, "reason": reason}
