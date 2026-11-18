@@ -212,7 +212,7 @@
       "short": "the card",
       "move": "Pay down revolving card",
       "fact": "$18,000 at 18%. $270 of each $300 payment is interest.",
-      "do": "Pay $6,800 of the card with cash you don't need",
+      "do": "Pay $6,800 of the card with cash above your reserve",
       "tasks": {
         "melanie": "Move $6,800 from your cash account",
         "timothy": "Pay the Chase card with it. It is in your name."
@@ -308,9 +308,6 @@
       "date": "2030",
       "text": "Home purchase, $600,000",
       "icon": "home"
-    },
-    {
-      "fork": "college"
     },
     {
       "date": "Aug 2038",

@@ -213,7 +213,13 @@ def insight(first_a, first_b):
                 f"What moves it is {name(front)} with {name(other)}: {together}.")
     notes = [fronts[f]["no_score_note"] for f in (first_a, first_b) if not fronts[f].get("move")]
     if movable:
-        notes.append(f"With {name(movable[0])}, your score goes to {score_for({movable[0]})}.")
+        alone = score_for({movable[0]})
+        if alone > base:
+            notes.append(f"With {name(movable[0])}, your score goes from {base} to {alone}.")
+        else:   # life cover or the umbrella alone don't move the score: say so, and say what does
+            other, together = best_partner(movable[0])
+            notes.append(f"{name(movable[0]).capitalize()} alone leaves your score at {base}. "
+                         f"Together with {name(other)} it reaches {together}.")
     return "You start in different places. " + " ".join(notes)
 
 
@@ -292,7 +298,7 @@ def checkin(person):
     elif mine is False:
         blocker = state["household"]["blockers"].get(person)
         message = (scenes["later"]["blocker_thanks"] if blocker
-                   else scenes["later"]["smaller"].format(task=first["my_task"].lower()))
+                   else scenes["later"]["smaller"].format(task=(first["my_task"][0].lower() + first["my_task"][1:]).rstrip(".")))
 
     return {"ready": True, "task": first["my_task"], "partner_line": partner_line,
             "answered": mine, "blocked": bool(state["household"]["blockers"].get(person)),
@@ -313,7 +319,7 @@ def road(person):
     """Milestones from the plan, plus what Nima says at each point in time: every step, in the couple's order."""
     scenes = load_scenes()
     if not both_ranked():
-        waiting = {"kind": "text", "text": "Rank what goes first, and your steps will appear here."}
+        waiting = {"kind": "text", "text": "When you have both built your stacks, your steps will appear here."}
         return {"milestones": scenes["road"], "source": scenes["road_source"], "forks": forks(person),
                 "order": scenes["front_priority"], "points": [{"label": "Today", **waiting}]}
 

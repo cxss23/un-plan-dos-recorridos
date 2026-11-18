@@ -12,6 +12,7 @@ const S = {
   meet: null,                                           // the meeting, from the server
   time: 0,                                              // position of the time slider on the tree
   chat: [], sheet: false,                               // Nima's chat, and whether it is open over the screen
+  revealed: false,                                      // has this person already seen the partner's stack
   start: null, me: null,
 };
 const $ = (id) => document.getElementById(id);
@@ -64,6 +65,7 @@ function draw(html, still) {
   const keep = $("v").scrollTop;
   $("v").innerHTML = html;
   $("v").classList.toggle("still", !!still);
+  $("v").classList.remove("revealed");                  // only the meeting uses it, after "Show ...'s stack"
   $("v").scrollTop = still ? keep : 0;
 }
 
@@ -124,15 +126,20 @@ function door(kind, state, icon) {
     <b>${label}</b></div>`;
 }
 
+// Each front always has its own colour, so the same stone looks the same in both stacks.
+const STONE = { card: "var(--s1)", life: "var(--s3)", umbrella: "var(--s4)", college: "var(--s2)" };
+
 // A stack of stones, base first. `same` marks the stones in the same place as the partner's.
-function cairn(order, same) {
-  const width = [112, 94, 76, 58], colour = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)"];
+// hidden = the partner's stack before the reveal: dashed empty places; the stones drop in when revealed.
+function cairn(order, same, hidden) {
+  const width = [112, 94, 76, 58];
   let svg = '<svg class="cairn" viewBox="0 0 150 158" role="img" aria-label="Stack of stones"><rect x="10" y="150" width="130" height="4" rx="2" fill="var(--line)"/>';
+  if (hidden) width.forEach((w, i) => (svg += `<ellipse class="slot" cx="75" cy="${130 - i * 31}" rx="${w / 2}" ry="15"/>`));
   order.forEach((id, i) => {
     const y = 130 - i * 31;
-    svg += `<ellipse cx="75" cy="${y}" rx="${width[i] / 2}" ry="15" fill="${colour[i]}"${same && same[i] ? ' stroke="var(--ink)" stroke-width="3"' : ""}/>
+    svg += `<g class="stone${same && same[i] ? " same" : ""}" style="--d:${0.3 + i * 0.45}s"><ellipse cx="75" cy="${y}" rx="${width[i] / 2}" ry="15" fill="${STONE[id]}"/>
       <g transform="translate(63 ${y - 12})" stroke="#fff" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-      <svg width="24" height="24" viewBox="0 0 24 24">${P[front(id).icon]}</svg></g>`;
+      <svg width="24" height="24" viewBox="0 0 24 24">${P[front(id).icon]}</svg></g></g>`;
   });
   return svg + "</svg>";
 }
@@ -260,13 +267,22 @@ async function meeting() {
   }
   const ids = (titles) => titles.map((t) => S.start.fronts.find((f) => f.title === t).id);
   const mine = ids(m.mine), theirs = ids(m.theirs);
+  const matches = m.same.filter(Boolean).length;
+  const legend = S.start.fronts.map((f) => `<span><b style="background:${STONE[f.id]}"></b>${esc(f.title)}</span>`).join("");
+  // Everything with class "later" waits until the partner's stones have landed.
   draw(`<h2>The meeting</h2>
-    <div class="cairns"><div>${cairn(mine, m.same)}${esc(m.name)} (you)</div><div>${cairn(theirs, m.same)}${esc(m.partner_name)}</div></div>
-    <p class="m">Stones with a dark outline are in the same place in both stacks.</p>
-    ${say(esc(m.insight))}
-    ${money()}
-    ${say(`Here is your plan, step by step, in the order that fits you both: ${esc(m.joint[0].title.toLowerCase())} first. For each one, see what happens if nothing changes, and what happens with the plan.`)}
-    <button class="go" id="nx">See your steps</button>`);
+    <p class="m">${esc(m.partner_name)} has built a stack too, without seeing yours.</p>
+    <div class="cairns meet"><div>${cairn(mine, m.same)}${esc(m.name)} (you)</div><div class="theirs">${cairn(theirs, m.same, true)}${esc(m.partner_name)}</div></div>
+    <div class="leg">${legend}</div>
+    <button class="go" id="reveal">Show ${esc(m.partner_name)}'s stack</button>
+    <div class="later" style="--d:2.4s"><p class="m">Same stone at the same height: ${matches} of ${m.same.length}${matches ? " (dark outline)" : ""}.</p></div>
+    <div class="later" style="--d:2.7s">${say(esc(m.insight))}</div>
+    <div class="later" style="--d:3s">${money()}</div>
+    <div class="later" style="--d:3.2s">${say(`Here is your plan, step by step, in the order that fits you both: ${esc(m.joint[0].title.toLowerCase())} first. For each one, see what happens if nothing changes, and what happens with the plan.`)}</div>
+    <button class="go later" id="nx" style="--d:3.4s">See your steps</button>`);
+  const reveal = () => { $("v").classList.add("revealed"); $("reveal").remove(); S.revealed = true; };
+  $("reveal").onclick = reveal;
+  if (S.revealed) reveal();                               // coming back to this screen: no need to tap again
   $("nx").onclick = () => { S.step = "doors"; S.cur = 0; doors(true); };
 }
 
@@ -305,8 +321,6 @@ async function first() {
     <p class="m">Which day will you do your part?</p>
     <input type="date" id="day" value="${step.reminder || soon}">
     <a class="go" id="cal">Add my part to my calendar</a>
-    <div class="col"><b>After that</b><ol>${S.meet.next
-      .map((n) => `<li>${esc(n.do)}<br><span class="m">Your part: ${esc(n.my_task)}</span></li>`).join("")}</ol></div>
     ${say("That's all for today. On the day you picked, open the Tree tab: I'll ask how it went.")}
     <div class="row"><button class="opt c" id="redoors">Back to the steps</button><button class="go" id="totree">See your tree</button></div>`);
   const link = () => { $("cal").href = `/api/reminder.ics?person=${S.person}&date=${$("day").value}`; };
@@ -332,7 +346,7 @@ async function tree(still) {
       <div><div class="lim plan${f.done ? " chosen" : " planned"}"><b>${f.done ? "Done" : "With the plan"}</b>${esc(f.plan)}</div></div></div>`;
   };
   let trunk = event("flag", "Today", "You are here", true) + `<div class="tr head">Your steps, in your order</div>`;
-  trunk += r.order.filter((id) => id !== "college").map(fork).join("");
+  trunk += r.order.map(fork).join("");                    // all four steps, college included, in their order
   trunk += event("bell", "Day 3, 30, 60, 90", "Nima checks in");
   trunk += r.milestones.map((m) => (m.fork ? fork(m.fork) : event(m.icon, m.date, m.text))).join("");
 
@@ -346,10 +360,15 @@ async function tree(still) {
     <div class="tree">${trunk}</div>${verified(r.source)}
     <div class="col"><div class="tick">${I("bell")}<b>How Nima checks in</b></div>
       ${r.points.length > 1 ? `<input type="range" min="0" max="${r.points.length - 1}" value="${S.time}" id="time" aria-label="Time">
-      <div class="ticks">${r.points.map((p, i) => `<span${i === S.time ? ' class="now"' : ""}>${esc(p.label)}</span>`).join("")}</div>` : ""}
+      <div class="ticks" id="ticks"></div>` : ""}
       <div id="moment"></div></div>`, still);
-  if ($("time")) $("time").oninput = () => { S.time = +$("time").value; tree(true); };
-  moment(r.points[S.time]);
+  // Moving the slider only changes the labels and what Nima says, so the slider keeps working while you drag it.
+  const at = () => {
+    if ($("ticks")) $("ticks").innerHTML = r.points.map((p, i) => `<span${i === S.time ? ' class="now"' : ""}>${esc(p.label)}</span>`).join("");
+    moment(r.points[S.time]);
+  };
+  if ($("time")) $("time").oninput = () => { S.time = +$("time").value; at(); };
+  at();
 }
 
 function moment(point) {

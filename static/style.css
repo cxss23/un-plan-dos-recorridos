@@ -98,6 +98,15 @@ nav button[aria-current="true"] { color: var(--ink); font-weight: 700; box-shado
 /* The stones */
 .cairn { width: 150px; height: 158px; display: block; margin: 0 auto; }
 .cairns { display: flex; gap: 8px; } .cairns > div { flex: 1; text-align: center; font-weight: 700; }
+/* The meeting: the partner's stack is empty (dashed places) until "Show"; then the stones drop in, base first */
+.cairn .slot { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.meet .theirs .stone { opacity: 0; }
+.revealed .meet .theirs .stone { opacity: 1; animation: drop .6s cubic-bezier(.3, 1.4, .6, 1) var(--d) backwards; }
+.revealed .meet .theirs .slot { opacity: 0; transition: opacity .3s 2.2s; }
+.revealed .meet .stone.same ellipse { stroke: var(--ink); stroke-width: 3; }   /* same stone, same height: shown after the reveal */
+@keyframes drop { from { opacity: 0; transform: translateY(-50px); } }
+.later { display: none; }                               /* what comes after the reveal waits for it */
+.revealed .later { display: block; animation: rise .5s ease var(--d) backwards; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .grid .opt { flex-direction: column; text-align: center; padding: 14px 6px; font-size: 14px; }
 .bar { display: flex; height: 34px; border-radius: 9px; overflow: hidden; margin: 6px 0; } .bar i { display: block; height: 100%; }
