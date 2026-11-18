@@ -1,4 +1,4 @@
-# Nima · One plan, two journeys
+# Nima · Two journeys
 
 A financial plan reaches a couple, but each of them reads it alone, and nothing happens until they agree.
 Nima tells the plan to each partner in their own way, has them decide separately what goes first,
@@ -9,20 +9,23 @@ Sherpas x UPV Sigma Data Club hackathon, November 2026. Case: Timothy and Melani
 ## How it works
 
 **Journey** (each partner, on their own phone)
-1. **Will you two agree?** The hook, from the first screen, is meeting your partner.
-2. **What worries you most?** The plan doesn't know: nobody asked.
-3. **Three things to know**, one fact per screen, about their worry and what is in their own name.
-4. **What goes first?** Each ranks the plan's four open fronts, without seeing the other's answer.
-5. **The meeting.** Both rankings side by side, what the plan says moves their score,
-   and a first step with a part for each of them: what to do, what it costs, what to ask the advisor.
+1. **Will you two agree?** Two doors and Nima, the guide. The hook is meeting your partner.
+2. **What worries you most?** The plan doesn't know: nobody asked. Or write it in your own words.
+3. **Three things to know**, one fact per screen: one about their worry, two about what is in their own name.
+4. **Build your stack.** Each partner stacks the plan's four open fronts as stones, base first, without seeing the other's.
+5. **The meeting.** Both stacks side by side, what the plan says about where they start, and where the family's cash sits.
+6. **The steps, as two doors.** One per front, in the order that fits them both. Both doors are open side by side:
+   door A shows what happens if nothing changes, door B what happens with the plan. Nothing to choose: the contrast
+   is the point. The plan score (60, 62, 73, 78) moves step by step.
+7. **Your first step**, with a part for each partner, what it costs, what to ask the advisor, and a calendar reminder.
 
-**Road.** The family's milestones from the plan, and a time slider: what Nima says on day 0, day 3, day 30.
-On day 3 it asks "did you do your part?", shows what the partner has done, and if not, what stopped them.
+**Tree.** The family's timeline as a trunk; every decision is a fork where the plan branch grows and "as now" fades.
+A slider shows what Nima says on each day after: the day 3 check-in ("did you do your part?"), then each next step.
 
-**Ask.** Prepared questions, or anything else. Every number in an answer is checked against the plan.
+**Nima.** Ask anything, from any screen. Prepared answers are ours; anything else goes to the AI, numbers checked.
 
-**Advisor.** What each partner worries about, what they put first, where they differ, and their open questions.
-The advisor can spend the meeting on decisions instead of explaining the plan.
+**Advisor.** What each partner worries about, what they put first, where they differ,
+their open questions, and a short note from Nima so the meeting starts with decisions, not explanations.
 
 ## How to run it
 
@@ -40,9 +43,9 @@ Without a key everything works except free questions and "Something else", which
 
 ## Try it in two minutes
 
-1. Open the app as **Timothy**, pick a worry, read the three screens and rank the four fronts.
-2. Go back (top right, "switch") and open it as **Melanie**. When she ranks, you see the meeting.
-3. Open **Road** and move the slider to Day 3.
+1. Open the app as **Timothy**, pick a worry, read the three screens and build your stack.
+2. Go back (top right, "switch") and open it as **Melanie**. When she builds her stack, you see the meeting and the doors.
+3. Open **Tree** and move the slider to Day 3.
 4. Open **Advisor**.
 5. "Reset the demo" (home screen or Advisor) clears everything.
 

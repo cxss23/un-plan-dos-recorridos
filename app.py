@@ -45,8 +45,11 @@ def start():
     scenes = story.load_scenes()
     return jsonify({"intro": scenes["intro"], "question": scenes["question"],
                     "people": scenes["people"], "personal_intro": scenes["personal_intro"],
-                    "fronts": [{"id": f["id"], "title": f["title"], "fact": f["fact"]} for f in scenes["fronts"]],
-                    "ask": [{"q": item["q"]} for item in scenes["ask"]]})
+                    "fronts": [{"id": f["id"], "title": f["title"], "fact": f["fact"], "icon": f["icon"]}
+                               for f in scenes["fronts"]],
+                    "scores": story.all_scores(),
+                    "nima_hello": scenes["nima_hello"],
+                    "ask": [{"q": item["q"], "about": item["about"]} for item in scenes["ask"]]})
 
 
 @app.get("/api/me")
@@ -108,6 +111,16 @@ def rank():
     if sorted(order) != sorted(story.fronts_by_id()):
         raise ValueError("The ranking must include every front, once each")
     story.update_state(lambda s: s["people"][person].update({"order": order}))
+    return jsonify({"ok": True})
+
+
+@app.post("/api/door")
+def door():
+    """Which door this person opened for a front: "stay" (as now) or "plan"."""
+    body, person = request.get_json(), person_arg()
+    if body["side"] not in ("stay", "plan") or body["front"] not in story.fronts_by_id():
+        raise ValueError("Unknown door")
+    story.update_state(lambda s: s["people"][person].setdefault("doors", {}).update({body["front"]: body["side"]}))
     return jsonify({"ok": True})
 
 

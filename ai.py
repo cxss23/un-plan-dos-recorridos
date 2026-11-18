@@ -223,23 +223,57 @@ def answer(question):
 
 # ---------- 3. The advisor note: brief the advisor on what the couple told us ----------
 
+NOTE_VERSION = 4          # change it when the instructions change, so saved notes are written again
+INTERNAL_WORDS = ["null", "none", "true", "false", "ready", "blocker", "done", "json", "field", "state"]
+
+
+def couple_facts(summary, ladder):
+    """What the couple did, as plain sentences. The model never sees our internal field names."""
+    a, b = summary["people"]
+    lines = [f"{a['name']} worries most about: {a['worry']}.",
+             f"{b['name']} worries most about: {b['worry']}."]
+    if a["order"] and b["order"]:
+        if a["order"][0] == b["order"][0]:
+            lines.append(f"Both put first: {a['order'][0]}.")
+        else:
+            lines.append(f"{a['name']} put first: {a['order'][0]}. {b['name']} put first: {b['order'][0]}.")
+        same = [x for x, y in zip(a["order"], b["order"]) if x == y]
+        lines.append(f"They ranked {len(same)} of {len(a['order'])} fronts in the same position.")
+    for p in (a, b):
+        if p["done"] is True:
+            lines.append(f"{p['name']} has done their part of the first step.")
+        elif p["blocker"]:
+            lines.append(f"{p['name']} has not done their part yet. What stopped them: {p['blocker']}.")
+    if summary["first"]:
+        lines.append(f"Their agreed first step: {summary['first']['do']}. Their question for you: {summary['first']['ask']}")
+    asked = [q["question"] for p in (a, b) for q in p["questions"] if q["for_advisor"]]
+    if asked:
+        lines.append("Questions their plan couldn't answer: " + " / ".join(asked))
+    lines.append("Plan scores: " + "; ".join(f"{r['label']}: {r['score']}" for r in ladder) + ".")
+    return "\n".join(lines)
+
+
 def advisor_note(summary, ladder):
     """A few lines for the advisor, written from what both partners did. Returns (note or None, reason)."""
     if not os.environ.get("TEAM_KEY"):
         return None, "no TEAM_KEY"
-    system = (
-        "You are Nima. You brief a financial advisor before a meeting with a couple. "
-        "Write 3 or 4 short sentences in plain English, at most 450 characters, no lists, no headings. "
-        "Say what worries each partner (in their own words if they typed them), where they agree and differ, "
-        "what stopped them if anything did, and which topic to open the meeting with, and why. "
-        "Use ONLY the facts below and the plan's scores. Never invent a number. Never say how anyone feels."
-    )
-    facts = {"what_the_couple_did": summary, "plan_scores": ladder}
+    system = """You are Nima. You brief a financial advisor in the minute before they meet a couple.
+Write exactly 4 short sentences of plain English prose, at most 450 characters in total. No lists, no headings.
+1. What worries each partner, in a few words each (paraphrase; quote them only if they typed something unusual).
+2. Where they agree or differ, using only what each put first. Do not list their full rankings.
+3. What has stopped them, if anything. If nothing has, say where they stand on the first step.
+4. Which topic to open the meeting with, and why, using one score from the plan.
+Use ONLY the facts given. Never invent a number. Never say how anyone feels."""
     try:
         note = call_model([{"role": "system", "content": system},
-                           {"role": "user", "content": json.dumps(facts, ensure_ascii=False)}])
+                           {"role": "user", "content": couple_facts(summary, ladder)}])
     except (requests.RequestException, KeyError, TypeError) as error:
         return None, str(error)
+    words = set(re.findall(r"[a-z]+", note.lower()))
+    if len(note) > 520:
+        return None, f"too long ({len(note)} characters)"
+    if words & set(INTERNAL_WORDS) - {"done"}:
+        return None, f"mentions internal words: {sorted(words & set(INTERNAL_WORDS))}"
     bad = check_numbers(note, plan_numbers() | allowed_numbers(summary))
     if bad:
         return None, f"numbers not in the plan: {bad}"

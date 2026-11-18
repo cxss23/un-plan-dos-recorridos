@@ -2,87 +2,141 @@
   "case": "timothy-melanie-weah",
   "family": "The Weahs",
   "people": {
-    "timothy": {"name": "Timothy", "partner": "melanie"},
-    "melanie": {"name": "Melanie", "partner": "timothy"}
+    "timothy": {
+      "name": "Timothy",
+      "partner": "melanie"
+    },
+    "melanie": {
+      "name": "Melanie",
+      "partner": "timothy"
+    }
   },
-
   "intro": {
     "title": "Will you two agree?",
-    "nima": "I'm Nima, your guide. The plan is the same for both of you, but each of you reads it your own way. You'll each decide what goes first, without seeing the other's answer. Then you meet.",
+    "nima": "I'm Nima, your guide. Every choice in your plan has two doors: what happens if nothing changes, and what happens with your plan. Each of you reads it your own way, then you meet.",
     "first": "{partner} does the same, on another phone. Will you agree?",
     "second": "{partner} has already ranked theirs. Will you agree?"
   },
-
   "question": {
     "title": "What worries you most?",
     "sub": "Your plan doesn't know this yet. Nobody asked.",
     "options": [
-      {"id": "kids", "text": "That Liam and Josh would be fine if one of us wasn't there"},
-      {"id": "card", "text": "That credit card that never goes down"},
-      {"id": "college", "text": "Paying for the kids' college"},
-      {"id": "retire", "text": "Whether we can retire when we want"},
-      {"id": "other", "text": "Something else", "free_text": true}
+      {
+        "id": "kids",
+        "text": "That Liam and Josh would be fine if one of us wasn't there"
+      },
+      {
+        "id": "card",
+        "text": "That credit card that never goes down"
+      },
+      {
+        "id": "college",
+        "text": "Paying for the kids' college"
+      },
+      {
+        "id": "retire",
+        "text": "Whether we can retire when we want"
+      },
+      {
+        "id": "other",
+        "text": "Something else",
+        "free_text": true
+      }
     ]
   },
-
   "personal_intro": "Before you decide: three things to know",
-
   "worry_screens": {
     "kids": "life",
     "card": "card_why",
     "college": "college",
     "retire": "retire"
   },
-
   "screens": {
     "card_why": {
       "kicker": "Why the card barely moves",
       "text": "You pay $300 a month on the card. $270 of it is interest. At this pace it is paid off in September 2039.",
-      "number": "$270", "label": "of every $300 goes to interest",
+      "number": "$270",
+      "label": "of every $300 goes to interest",
       "detail": "Chase card: $18,000 at 18%, $300 a month. Every other debt you have is cheaper: mortgage 6%, student loan 5.5%, car loan 4.5%.",
       "source": "key_metrics.ratios.creditCardDebt, profile.liabilities"
     },
     "college": {
       "kicker": "College, today",
       "text": "There is nothing saved for college yet. Liam starts in August 2038 and Josh in August 2041.",
-      "number": "$0", "label": "saved for college",
+      "number": "$0",
+      "label": "saved for college",
       "detail": "The plan says $113,508.60 is still needed for both. Starting now, that is about $4,609 a year.",
-      "source": "key_metrics.facts.education, goals.chartGoals"
+      "source": "key_metrics.facts.education, goals.chartGoals",
+      "blocks": null
     },
     "retire": {
       "kicker": "Good news first",
       "text": "Your retirement is on track. In the plan, your savings never run out.",
-      "number": "2048", "label": "you retire at 62 and 60",
+      "number": "2048",
+      "label": "you retire at 62 and 60",
       "detail": "Income covers 93% of your yearly need in retirement. The plan ends with $2,371,900 in savings, in today's dollars. You save 22.8% of what you earn.",
       "source": "key_metrics.facts.retirement"
     }
   },
-
   "personal": {
     "timothy": [
       {
         "id": "life",
         "kicker": "Your life cover",
         "text": "If your income stopped, your life cover pays $140,000. That is less than one year of your salary.",
-        "number": "$140,000", "label": "your life cover today",
+        "number": "$140,000",
+        "label": "your life cover today",
         "detail": "Your salary is $150,000. The plan's minimum for you is $750,000, so the gap is $610,000.",
-        "source": "key_metrics.ratios.lifeInsurance"
+        "source": "key_metrics.ratios.lifeInsurance",
+        "bars": [
+          [
+            "Your yearly salary",
+            150000,
+            "$150,000"
+          ],
+          [
+            "Your cover",
+            140000,
+            "$140,000"
+          ],
+          [
+            "Recommended minimum",
+            750000,
+            "$750,000",
+            1
+          ]
+        ]
       },
       {
         "id": "ownership",
         "kicker": "Your card, her cash",
         "text": "The Chase card is in your name. The cash that could pay it is in Melanie's account. This one needs both of you.",
-        "number": "2", "label": "people, one decision",
+        "number": "2",
+        "label": "people, one decision",
         "detail": "Chase card: $18,000, owner Timothy. Cash account: $150,000, owner Melanie.",
         "source": "profile.liabilities, key_metrics.protection.emergencyFund.cashAccountList"
       },
       {
         "id": "roth",
         "kicker": "Your Roth",
-        "text": "$12,740 of your $25,000 Roth is in a leveraged fund. It amplifies what the market does, up and down.",
-        "number": "$12,740", "label": "in a leveraged fund",
-        "detail": "The fund is UPRO. The plan doesn't ask you to sell it: it asks that you both know it is there.",
-        "source": "investment-analysis positions"
+        "text": "$12,740 of your Roth is in a leveraged fund: it moves more than the market, up and down. Your plan asks you and Melanie to agree on how much risk you want.",
+        "number": "$12,740",
+        "label": "in a leveraged fund",
+        "detail": "That is about half of your $25,000 Roth. Over three years the account returned 41.1% with 30% volatility, and your plan says that may not repeat. Not urgent, but worth watching.",
+        "source": "investment-analysis narrative",
+        "bars": [
+          [
+            "Your Roth",
+            25000,
+            "$25,000"
+          ],
+          [
+            "Leveraged fund",
+            12740,
+            "$12,740",
+            1
+          ]
+        ]
       }
     ],
     "melanie": [
@@ -90,92 +144,274 @@
         "id": "life",
         "kicker": "Your life cover",
         "text": "If your income stopped, your life cover pays $110,000. That is less than one year of your salary.",
-        "number": "$110,000", "label": "your life cover today",
+        "number": "$110,000",
+        "label": "your life cover today",
         "detail": "Your salary is $120,000. The plan's minimum for you is $600,000, so the gap is $490,000.",
-        "source": "key_metrics.ratios.lifeInsurance"
+        "source": "key_metrics.ratios.lifeInsurance",
+        "bars": [
+          [
+            "Your yearly salary",
+            120000,
+            "$120,000"
+          ],
+          [
+            "Your cover",
+            110000,
+            "$110,000"
+          ],
+          [
+            "Recommended minimum",
+            600000,
+            "$600,000",
+            1
+          ]
+        ]
       },
       {
         "id": "ownership",
         "kicker": "Your cash, his card",
         "text": "Your cash covers 16 months of living costs. The plan recommends 8 to 9. The extra could pay down the card in Timothy's name.",
-        "number": "16", "label": "months covered by your cash",
+        "number": "16",
+        "label": "months covered by your cash",
         "detail": "Cash account: $150,000, owner Melanie. Recommended reserve: $75,180 to $84,577.50. Cash above reserve and near-term goals: $60,222.50.",
-        "source": "key_metrics.facts.cash, key_metrics.protection.emergencyFund.cashAccountList"
+        "source": "key_metrics.facts.cash, key_metrics.protection.emergencyFund.cashAccountList",
+        "blocks": [
+          16,
+          9,
+          "months of costs covered by your cash; the recommended 8 to 9 are the solid ones"
+        ]
       },
       {
         "id": "equity",
         "kicker": "Your accounts run faster than you",
-        "text": "You chose a moderate profile: about 60% in stocks. Your accounts hold between 70% and 81%.",
-        "number": "81%", "label": "in stocks, at the top",
-        "detail": "Across the household, investments are about 77% in stocks. Counting cash, it drops to about 45%.",
-        "source": "persona D4b"
+        "text": "You chose a moderate profile: about 60% in stocks. Your accounts hold 70% to 81%. Your plan asks you and Timothy to agree on how much risk you want.",
+        "number": "81%",
+        "label": "in stocks, at the top",
+        "detail": "Timothy's profile is Growth and yours is Moderate. Your family's investments are about 77% in stocks against a 60% target. Your plan says a market fall could hit harder than you intend.",
+        "source": "persona D4, investment-analysis narrative",
+        "bars": [
+          [
+            "What you chose",
+            60,
+            "60%"
+          ],
+          [
+            "Your accounts, up to",
+            81,
+            "81%",
+            1
+          ]
+        ]
       }
     ]
   },
-
   "fronts": [
-    {"id": "card", "title": "Pay down the 18% card", "short": "the card", "move": "Pay down revolving card",
-     "fact": "$18,000 at 18%. $270 of each $300 payment is interest.",
-     "do": "Pay $6,800 of the card with cash you don't need",
-     "tasks": {"melanie": "Move $6,800 from your cash account", "timothy": "Pay the Chase card with it"},
-     "cost": "$6,800, once, from cash you already have. $11,200 of the card stays, and you keep paying $300 a month.",
-     "ask": "What if we paid off the whole card?",
-     "source": "score.top_moves"},
-    {"id": "life", "title": "Add life cover", "short": "life cover", "move": "Add life cover",
-     "fact": "If one income stopped, cover pays $140,000 or $110,000. Liam is 6 and Josh is 3.",
-     "do": "Get a quote for $235,000 more life cover",
-     "tasks": {"timothy": "Get a quote to raise your cover", "melanie": "Get a quote to raise your cover"},
-     "cost": "Your plan doesn't include a price. You'll know it with the quote.",
-     "ask": "What would it cost per month, and how should we split it between us?",
-     "source": "score.top_moves"},
-    {"id": "umbrella", "title": "Add an umbrella policy", "short": "the umbrella", "move": "Add umbrella cover",
-     "fact": "If someone sued you for a large amount, nothing covers it today.",
-     "do": "Get a quote for a $1,000,000 umbrella policy",
-     "tasks": {"timothy": "Get the quote, or agree who does", "melanie": "Get the quote, or agree who does"},
-     "cost": "Your plan doesn't include a price. You'll know it with the quote.",
-     "ask": "What would it cost, and how much cover do we need?",
-     "source": "score.top_moves"},
-    {"id": "college", "title": "Start college savings", "short": "college savings",
-     "fact": "$0 saved. Liam starts in August 2038 and Josh in August 2041.",
-     "do": "Start saving for Liam and Josh's college",
-     "tasks": {"timothy": "Agree with Melanie how much to set aside each month", "melanie": "Agree with Timothy how much to set aside each month"},
-     "cost": "About $4,609 a year to cover what is missing.",
-     "ask": "Which kind of account should we use?",
-     "no_score_note": "College savings doesn't change your plan's score, but today there is $0 saved.",
-     "source": "key_metrics.facts.education"}
+    {
+      "id": "card",
+      "title": "Pay down the 18% card",
+      "short": "the card",
+      "move": "Pay down revolving card",
+      "fact": "$18,000 at 18%. $270 of each $300 payment is interest.",
+      "do": "Pay $6,800 of the card with cash you don't need",
+      "tasks": {
+        "melanie": "Move $6,800 from your cash account",
+        "timothy": "Pay the Chase card with it. It is in your name."
+      },
+      "cost": "$6,800, once, from cash you already have. $11,200 of the card stays, and you keep paying $300 a month.",
+      "ask": "What if we paid off the whole card?",
+      "source": "score.top_moves",
+      "stay": "Keep paying $300 a month. $270 of each payment is interest. The card is gone in September 2039.",
+      "stay_short": "Card until Sep 2039",
+      "plan": "Pay $6,800 from cash you already have. $11,200 of debt remains and your $300 payment goes on.",
+      "plan_short": "$11,200 left",
+      "icon": "card"
+    },
+    {
+      "id": "life",
+      "title": "Add life cover",
+      "short": "life cover",
+      "move": "Add life cover",
+      "fact": "If one income stopped, cover pays $140,000 or $110,000. Liam is 6 and Josh is 3.",
+      "do": "Get a quote for $235,000 more life cover",
+      "tasks": {
+        "timothy": "Get a quote to raise your cover",
+        "melanie": "Get a quote to raise your cover"
+      },
+      "cost": "Your plan doesn't include a price. You'll know it with the quote.",
+      "ask": "What would it cost per month, and how should we split it between us?",
+      "source": "score.top_moves",
+      "stay": "If one income is lost, the cover pays $140,000 or $110,000. Liam is 6 and Josh is 3.",
+      "stay_short": "$140,000 / $110,000",
+      "plan": "Ask for a quote for $235,000 more life cover. The plan has no price; the quote will tell you.",
+      "plan_short": "+$235,000 of cover",
+      "icon": "life"
+    },
+    {
+      "id": "umbrella",
+      "title": "Add an umbrella policy",
+      "short": "the umbrella",
+      "move": "Add umbrella cover",
+      "fact": "If someone sued you for a large amount, nothing covers it today.",
+      "do": "Get a quote for a $1,000,000 umbrella policy",
+      "tasks": {
+        "timothy": "Get the quote, or agree who does",
+        "melanie": "Get the quote, or agree who does"
+      },
+      "cost": "Your plan doesn't include a price. You'll know it with the quote.",
+      "ask": "What would it cost, and how much cover do we need?",
+      "source": "score.top_moves",
+      "stay": "If someone claims a large amount, nothing covers it today. Your net worth is $695,500.",
+      "stay_short": "No cover today",
+      "plan": "Ask for a quote for a $1,000,000 umbrella policy. The plan has no price.",
+      "plan_short": "$1,000,000 umbrella",
+      "icon": "umb"
+    },
+    {
+      "id": "college",
+      "title": "Start college savings",
+      "short": "college savings",
+      "fact": "$0 saved. Liam starts in August 2038 and Josh in August 2041.",
+      "do": "Start saving for Liam and Josh's college",
+      "tasks": {
+        "timothy": "Agree with Melanie how much to set aside each month",
+        "melanie": "Agree with Timothy how much to set aside each month"
+      },
+      "cost": "About $4,609 a year to cover what is missing.",
+      "ask": "Which kind of account should we use?",
+      "no_score_note": "College savings doesn't change your plan's score, but today there is $0 saved.",
+      "source": "key_metrics.facts.education",
+      "stay": "$0 saved. Liam starts in August 2038 and Josh in August 2041. The gap is $113,508.60.",
+      "stay_short": "$0 saved",
+      "plan": "Start saving: about $4,609 a year covers the gap. It doesn't change the plan score.",
+      "plan_short": "About $4,609 a year",
+      "icon": "col"
+    }
   ],
-  "front_priority": ["card", "life", "umbrella", "college"],
-
+  "front_priority": [
+    "card",
+    "life",
+    "umbrella",
+    "college"
+  ],
   "road": [
-    {"date": "Jan 2027", "text": "Vacation, $6,000 a year"},
-    {"date": "Jul 2028", "text": "Vehicle purchase, $45,000"},
-    {"date": "2030", "text": "Home purchase, $600,000"},
-    {"date": "Aug 2038", "text": "Liam starts college", "key": true},
-    {"date": "Aug 2041", "text": "Josh starts college", "key": true},
-    {"date": "2048", "text": "Retirement: Melanie at 60, Timothy at 62"}
+    {
+      "date": "Jan 2027",
+      "text": "Vacation, $6,000 a year",
+      "icon": "sun"
+    },
+    {
+      "date": "Jul 2028",
+      "text": "Vehicle purchase, $45,000",
+      "icon": "car"
+    },
+    {
+      "date": "2030",
+      "text": "Home purchase, $600,000",
+      "icon": "home"
+    },
+    {
+      "fork": "college"
+    },
+    {
+      "date": "Aug 2038",
+      "text": "Liam starts college",
+      "icon": "col"
+    },
+    {
+      "date": "Aug 2041",
+      "text": "Josh starts college",
+      "icon": "col"
+    },
+    {
+      "date": "2048",
+      "text": "Retirement: Melanie at 60, Timothy at 62",
+      "icon": "rise"
+    }
   ],
-  "road_source": "goals.chartGoals, persona D1",
+  "road_source": "goals.chartGoals, score.combined_moves",
   "jan_2027": "Vacation month. Your plan already sets $6,000 aside for it, so your cash cushion doesn't move.",
-
   "later": {
     "blockers": [
-      {"id": "time", "text": "No time yet"},
-      {"id": "how", "text": "I don't know how to do it"},
-      {"id": "disagree", "text": "We don't see it the same way"},
-      {"id": "rethink", "text": "I've changed my mind"}
+      {
+        "id": "time",
+        "text": "No time yet"
+      },
+      {
+        "id": "how",
+        "text": "I don't know how to do it"
+      },
+      {
+        "id": "disagree",
+        "text": "We don't see it the same way"
+      },
+      {
+        "id": "rethink",
+        "text": "I've changed my mind"
+      }
     ],
     "smaller": "Make it smaller: do just one piece today. Your piece is: {task}.",
     "blocker_thanks": "Thanks. I've passed this to your advisor so they can help with it."
   },
-
   "ask": [
-    {"q": "Why pay the card if we have cash?",
-     "a": "Of every $300 you pay on the card, $270 is interest. Meanwhile $60,222 of your cash sits above your reserve and near-term goals, earning about 0.1%.",
-     "source": "key_metrics.ratios.creditCardDebt, key_metrics.facts.cash"},
-    {"q": "Does life cover alone raise our score?",
-     "a": "No. On its own the score stays at 60, because the 18% card holds it there. Together with the card paydown it reaches 73.",
-     "source": "score.top_moves, score.combined_moves"},
-    {"q": "How much would extra life cover cost?",
-     "a": null}
-  ]
+    {
+      "q": "Why pay the card if we have cash?",
+      "about": [
+        "card"
+      ],
+      "a": "Of every $300 you pay on the card, $270 is interest. Meanwhile $60,222 of your cash sits above your reserve and near-term goals, earning about 0.1%.",
+      "source": "key_metrics.ratios.creditCardDebt, key_metrics.facts.cash"
+    },
+    {
+      "q": "How much life cover do we have?",
+      "about": [
+        "life"
+      ],
+      "a": "Your life cover is $140,000 and $110,000. Your plan recommends $750,000 to $1,500,000 for Timothy and $600,000 to $1,200,000 for Melanie. The first step it scores is $235,000 more.",
+      "source": "key_metrics.ratios.lifeInsurance"
+    },
+    {
+      "q": "What would extra cover cost?",
+      "about": [
+        "life"
+      ],
+      "a": null
+    },
+    {
+      "q": "What is an umbrella policy for?",
+      "about": [
+        "umbrella"
+      ],
+      "a": "It pays if someone claims a large amount from you, for example after an accident. Nothing covers that today, and your net worth is $695,500. Your plan suggests a $1,000,000 policy.",
+      "source": "protection_umbrella_short_observations"
+    },
+    {
+      "q": "How much is missing for college?",
+      "about": [
+        "college"
+      ],
+      "a": "Nothing is saved yet. The gap for both children is $113,508.60, about $4,609 a year.",
+      "source": "key_metrics.facts.education"
+    },
+    {
+      "q": "Does life cover alone raise our score?",
+      "about": [
+        "life"
+      ],
+      "a": "No. On its own the score stays at 60, because the 18% card holds it there. Together with the card paydown it reaches 73.",
+      "source": "score.top_moves, score.combined_moves"
+    },
+    {
+      "q": "What is our score?",
+      "about": [],
+      "a": "Your plan scores 60 today. Paying down the card reaches 62, card plus life cover 73, and adding the umbrella 78.",
+      "source": "score.top_moves, score.combined_moves"
+    },
+    {
+      "q": "How much cash do we have?",
+      "about": [],
+      "a": "You hold $150,800 in cash. About $60,000 of it sits above your reserve and near-term goals.",
+      "source": "key_metrics.facts.cash"
+    }
+  ],
+  "nima_hello": "Ask me anything, at any moment. If your plan has the answer, I show you where it comes from. If it doesn't, I tell you and pass it to your advisor."
 }

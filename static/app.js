@@ -1,20 +1,44 @@
-// Nima's screens. This file only draws: what to show and which numbers come out is decided in Python (story.py).
+// Nima's screens. This file only draws: what to show and which scores come out is decided in Python (story.py).
 
 const params = new URLSearchParams(location.search);
-const TABS = ["journey", "road", "ask", "advisor"];
+const TABS = ["journey", "tree", "nima", "advisor"];
 const S = {
   person: params.get("person"),                         // "timothy" or "melanie"; empty on the home screen
   tab: Math.max(0, TABS.indexOf(params.get("tab"))),    // which tab is open
-  step: "worry",                                        // worry -> screen -> rank -> meeting
-  screen: 0,                                            // which of the three fact screens
-  screens: [],                                          // the three fact screens
-  rank: [],                                             // the order being tapped
-  other: false,                                         // typing a worry of their own
-  time: 0,                                              // position of the time slider on the road
-  chat: [],                                             // questions and answers on the Ask tab
+  step: "worry",                                        // worry -> screen -> stack -> meeting -> doors -> first
+  screen: 0, screens: [], details: false,               // the three fact screens
+  rank: [],                                             // the stones, in the order tapped
+  cur: 0,                                               // which step screen
+  meet: null,                                           // the meeting, from the server
+  time: 0,                                              // position of the time slider on the tree
+  chat: [], sheet: false,                               // Nima's chat, and whether it is open over the screen
   start: null, me: null,
 };
 const $ = (id) => document.getElementById(id);
+
+// ---------- Icons (drawn as SVG, no images) ----------
+
+const P = {
+  card: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M6.5 15h4"/>',
+  life: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  umb: '<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 12v6a2 2 0 0 1-4 0"/>',
+  col: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  car: '<path d="M4 17v-5l2-5h12l2 5v5z"/><path d="M4 12h16"/><circle cx="8" cy="17" r="1.6"/><circle cx="16" cy="17" r="1.6"/>',
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
+  flag: '<path d="M6 21V4"/><path d="M6 4h11l-2 4 2 4H6"/>',
+  rise: '<path d="M3 18h18"/><path d="M7 18a5 5 0 0 1 10 0"/><path d="M12 6v3M5 10l2 2M19 10l-2 2"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
+  send: '<path d="M4 12l16-8-6 16-3-7z"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+  route: '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 16V9a3 3 0 0 1 3-3h7"/>',
+  tree: '<path d="M12 21V9"/><path d="M12 14l-5-4M12 12l5-4M12 17l-4-3M12 17l4-3"/>',
+  desk: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+};
+const I = (name) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${P[name] || ""}</svg>`;
 
 // ---------- Helpers ----------
 
@@ -30,10 +54,12 @@ async function api(path, body) {
 function esc(text) {
   return String(text ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
-const say = (text, me) => `<div class="say${me ? " me" : ""}">${text}</div>`;
-const verified = (source) => (source ? `<div class="src ok">${esc(source)}</div>` : "");
+const say = (html, me) => `<div class="say${me ? " me" : ""}">${html}</div>`;
+const verified = (source) => (source ? `<div class="src">${I("check")}<span>Verified in the plan: ${esc(source)}</span></div>` : "");
+const toAdvisor = () => `<div class="src adv">${I("desk")}<span>Not in your plan. Sent to your advisor.</span></div>`;
+const front = (id) => S.start.fronts.find((f) => f.id === id);
 
-// Draws a view. `still` = redraw the same view without the entrance animation (e.g. each tap while ranking).
+// Draws a view. `still` = redraw the same view without the entrance animation and keep the scroll.
 function draw(html, still) {
   const keep = $("v").scrollTop;
   $("v").innerHTML = html;
@@ -45,103 +71,168 @@ function draw(html, still) {
 
 async function start() {
   S.start = await api("/api/start");
+  $("pill").innerHTML = `${I("check")}plan-verified`;
   if (S.person) {
     S.me = await api(`/api/me?person=${S.person}`);
     $("who").textContent = `${S.me.name} · switch`;
-    if (S.me.order.length) S.step = "meeting";          // they already ranked: go to the meeting
+    if (S.me.order.length) {                            // already ranked: pick up where they left off
+      S.rank = S.me.order;
+        S.step = "meeting";
+    }
   }
   render();
 }
 
 function render() {
-  $("nav").innerHTML = ["Journey", "Road", "Ask", "Advisor"]
-    .map((name, i) => `<button data-tab="${i}"${S.tab === i ? ' aria-current="true"' : ""}>${name}</button>`)
-    .join("");
-  document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { S.tab = +b.dataset.tab; render(); }));
+  const tabs = [["route", "Journey"], ["tree", "Tree"], ["chat", "Nima"], ["desk", "Advisor"]];
+  $("nav").innerHTML = tabs.map(([icon, name], i) =>
+    `<button data-tab="${i}"${S.tab === i ? ' aria-current="true"' : ""}>${I(icon)}${name}</button>`).join("");
+  document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { S.tab = +b.dataset.tab; S.sheet = false; render(); }));
+  // "Ask Nima anything": on every screen except Nima's own tab
+  $("mb").innerHTML = S.person && S.tab !== 2
+    ? `<button class="mentor" id="mo">${I("chat")}<span>Ask Nima anything</span></button>` : "";
+  if ($("mo")) $("mo").onclick = () => { S.sheet = true; sheet(); };
+  sheet();
   if (!S.person && S.tab !== 3) return home();
-  [journey, road, ask, advisor][S.tab]();
+  [journey, tree, nimaTab, advisor][S.tab]();
 }
 
 function home() {
   draw(`<h1>${esc(S.start.intro.title)}</h1>
+    <div class="hero">${door("stay", "open")}<span class="m">or</span>${door("plan", "open")}</div>
     ${say(esc(S.start.intro.nima))}
-    <p class="m">Who are you?</p>
+    <p class="m">Who are you? Each of you opens this on your own phone.</p>
     <div class="row">${Object.entries(S.start.people)
-      .map(([id, p]) => `<button class="opt" onclick="location.href='?person=${id}'">${esc(p.name)}</button>`).join("")}</div>
-    <p class="m">Each of you opens this on your own phone.</p>
+      .map(([id, p]) => `<button class="opt c" onclick="location.href='?person=${id}'">${esc(p.name)}</button>`).join("")}</div>
     <button class="link" id="reset">Reset the demo</button>`);
-  $("reset").onclick = async () => { await api("/api/reset", {}); location.href = "/"; };
+  $("reset").onclick = resetDemo;
+}
+
+async function resetDemo() {
+  await api("/api/reset", {});
+  location.href = "/";
+}
+
+// ---------- Pieces that appear on several screens ----------
+
+// One door, as a picture (not a button). kind = "stay" (nothing changes) or "plan"; state = "open", "dim" or both.
+function door(kind, state, icon) {
+  const label = kind === "stay" ? "Keep things as they are" : "Follow the plan";
+  return `<div class="door ${kind}${state ? " " + state : ""}" aria-hidden="true">
+    <span class="tag">${kind === "stay" ? "Door A" : "Door B"}</span>
+    <span class="dframe"><span class="dlight">${I(icon || (kind === "plan" ? "route" : "flag"))}</span><span class="leaf"></span></span>
+    <b>${label}</b></div>`;
+}
+
+// A stack of stones, base first. `same` marks the stones in the same place as the partner's.
+function cairn(order, same) {
+  const width = [112, 94, 76, 58], colour = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)"];
+  let svg = '<svg class="cairn" viewBox="0 0 150 158" role="img" aria-label="Stack of stones"><rect x="10" y="150" width="130" height="4" rx="2" fill="var(--line)"/>';
+  order.forEach((id, i) => {
+    const y = 130 - i * 31;
+    svg += `<ellipse cx="75" cy="${y}" rx="${width[i] / 2}" ry="15" fill="${colour[i]}"${same && same[i] ? ' stroke="var(--ink)" stroke-width="3"' : ""}/>
+      <g transform="translate(63 ${y - 12})" stroke="#fff" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="24" height="24" viewBox="0 0 24 24">${P[front(id).icon]}</svg></g>`;
+  });
+  return svg + "</svg>";
+}
+
+// Where the family's cash sits, with the card at the same scale. Figures from the plan.
+function money() {
+  return `<div class="col"><b>Where your $150,800 of cash sits</b>
+    <div class="bar"><i style="width:56.1%;background:var(--s1)"></i><i style="width:4%;background:var(--s4)"></i><i style="width:39.9%;background:var(--s3)"></i></div>
+    <div class="leg"><span><b style="background:var(--s1)"></b>Emergency reserve, up to $84,578</span>
+      <span><b style="background:var(--s4)"></b>Vacation $6,000</span><span><b style="background:var(--s3)"></b>Free: $60,222</span></div>
+    <p class="m" style="margin-top:10px">The 18% Chase card, same scale:</p>
+    <div class="bar"><i style="width:11.9%;background:var(--warn)"></i></div>
+    <div class="leg"><span><b style="background:var(--warn)"></b>$18,000: $270 of each $300 payment is interest</span></div>
+    ${verified("key_metrics.facts.cash, key_metrics.ratios.creditCardDebt")}</div>`;
+}
+
+// The score bar: 60, 62, 73, 78. `done` = the fronts done so far, in the couple's order.
+function track(done) {
+  const key = [...done].sort().join(",");
+  const score = S.start.scores[key];
+  const steps = [[60, "Today"], [62, "Card"], [73, "+ Life cover"], [78, "+ Umbrella"]];
+  const reached = Math.max(0, steps.filter(([s]) => s <= (score ?? 60)).length - 1);
+  let note = "";
+  if (done.includes("life") && !done.includes("card")) note = "Life cover alone leaves the score at 60. It moves together with the card.";
+  return `<div class="col"><div class="sc"><b>Plan score</b><b>${score ?? "–"}</b></div>
+    <div class="track"><i class="fill" style="width:${reached * 33.3}%"></i>${steps
+      .map(([s, label], i) => `<span class="node${i <= reached ? " on" : ""}" style="left:${i * 33.3}%"><b>${s}</b>${label}</span>`).join("")}</div>
+    ${note ? `<p class="m">${note}</p>` : ""}${verified("score.top_moves, score.combined_moves")}</div>`;
 }
 
 // ---------- Tab 1: the journey ----------
 
 function journey() {
-  ({ worry, screen, rank, meeting })[S.step]();
+  ({ worry, screen, stack, meeting, doors, first })[S.step]();
 }
 
 function worry() {
   const q = S.start.question;
-  const options = q.options.filter((o) => !o.free_text)
-    .map((o) => `<button class="opt" data-worry="${o.id}">${esc(o.text)}</button>`).join("");
+  const icons = { kids: "life", card: "card", college: "col", retire: "rise" };
   draw(`${say(esc(S.me.intro))}
     <h2>${esc(q.title)}</h2>
     <p class="m">${esc(q.sub)}</p>
-    ${options}
-    ${S.other
-      ? `<textarea id="own" rows="3" placeholder="In your own words"></textarea>
-         <button class="go" id="send">Continue</button>`
-      : `<button class="opt" id="other">Something else…</button>`}`);
+    ${q.options.filter((o) => !o.free_text).map((o) => `<button class="opt" data-worry="${o.id}">${I(icons[o.id])}${esc(o.text)}</button>`).join("")}
+    <textarea id="own" rows="2" placeholder="Something else? Write it in your own words"></textarea>
+    <button class="go" id="send">Continue with my own words</button>`);
   document.querySelectorAll("[data-worry]").forEach((b) => (b.onclick = () => chooseWorry(b.dataset.worry, "")));
-  if ($("other")) $("other").onclick = () => { S.other = true; worry(); $("own").focus(); };
-  if ($("send")) $("send").onclick = () => $("own").value.trim() && chooseWorry("other", $("own").value.trim());
+  $("send").onclick = () => $("own").value.trim() && chooseWorry("other", $("own").value.trim());
 }
 
 async function chooseWorry(id, text) {
   draw(`<div class="loader"></div>${say("Reading your plan with that in mind…")}`);
   const reply = await api("/api/worry", { worry: id, text });
-  S.screens = reply.screens;
-  S.screen = 0;
-  S.step = "screen";
+  Object.assign(S, { screens: reply.screens, screen: 0, details: false, step: "screen" });
   journey();
 }
 
 function screen() {
   const s = S.screens[S.screen];
-  const dots = S.screens.map((_, i) => `<i class="${i <= S.screen ? "on" : ""}"></i>`).join("");
   const last = S.screen === S.screens.length - 1;
-  draw(`<div class="dots">${dots}</div>
-    ${S.screen === 0 ? `<p class="m">${esc(S.start.personal_intro)}</p>` : ""}
-    <p class="kicker">${esc(s.kicker)}</p>
-    <h2>${esc(s.text)}</h2>
-    <div class="big">${esc(s.number)}<small>${esc(s.label)}</small></div>
-    <div id="numbers"></div>
-    <button class="ghost" id="show">Show the numbers</button>
-    <div class="row"><button class="ghost" id="back">Back</button><button class="go" id="next">${last ? "Now, what goes first?" : "Next"}</button></div>`);
+  let picture = `<div class="big">${esc(s.number)}<small>${esc(s.label)}</small></div>`;
+  if (s.bars) {
+    const max = Math.max(...s.bars.map((b) => b[1]));
+    picture = s.bars.map(([label, value, text, hi]) => `<div class="pbar${hi ? " hi" : ""}"><label><span>${esc(label)}</span><span>${esc(text)}</span></label>
+      <div class="tk"><div class="fl" data-w="${(value / max) * 100}"></div></div></div>`).join("");
+  } else if (s.blocks) {
+    const [total, solid, label] = s.blocks;
+    picture = `<div class="blk">${Array.from({ length: total }, (_, i) => `<i class="${i < solid ? "" : "x"}"></i>`).join("")}</div>
+      <p class="m">${total} ${esc(label)}</p>`;
+  }
+  draw(`<div class="pdots">${S.screens.map((_, i) => `<i class="${i <= S.screen ? "on" : ""}"></i>`).join("")}</div>
+    <p class="m">${esc(S.start.personal_intro)}</p>
+    <p class="pk">${esc(s.kicker)}</p>
+    <p class="pt">${esc(s.text)}</p>
+    <div>${picture}</div>
+    <button class="opt c" id="dt">${S.details ? "Hide the numbers" : "See the numbers"}</button>
+    ${S.details ? `<div class="col"><p>${esc(s.detail)}</p>${verified(s.source)}</div>` : ""}
+    <div class="row"><button class="opt c" id="bk">${I("back")}Back</button><button class="go" id="nx">${last ? "Now build your stack" : "Next"}</button></div>`, S.details);
+  setTimeout(() => document.querySelectorAll(".fl").forEach((f) => (f.style.width = f.dataset.w + "%")), 60);
   api("/api/event", { kind: "seen", screen: s.id });
-  $("show").onclick = () => {
-    $("numbers").innerHTML = `<div class="col">${esc(s.detail)}${verified(s.source)}</div>`;
-    $("show").remove();
-    api("/api/event", { kind: "detail", screen: s.id });
+  $("dt").onclick = () => {
+    S.details = !S.details;
+    if (S.details) api("/api/event", { kind: "detail", screen: s.id });
+    screen();
   };
-  $("back").onclick = () => { if (S.screen) { S.screen--; screen(); } else { S.step = "worry"; S.other = false; worry(); } };
-  $("next").onclick = () => { if (last) { S.step = "rank"; S.rank = []; rank(); } else { S.screen++; screen(); } };
+  $("bk").onclick = () => { S.details = false; if (S.screen) { S.screen--; screen(); } else { S.step = "worry"; worry(); } };
+  $("nx").onclick = () => { S.details = false; if (last) { S.step = "stack"; S.rank = []; stack(); } else { S.screen++; screen(); } };
 }
 
-function rank() {
-  const fronts = S.start.fronts.map((f) => {
-    const i = S.rank.indexOf(f.id);
-    return `<button class="opt${i > -1 ? " on" : ""}" data-front="${f.id}">
-      ${i > -1 ? `<span class="n">${i + 1}</span>` : ""}${esc(f.title)}<small>${esc(f.fact)}</small></button>`;
-  }).join("");
-  draw(`<h2>What goes first?</h2>
-    <p class="m">Tap them in order, first to last. Tap again to undo. Your partner does the same on their own.</p>
-    ${fronts}
-    <button class="go" id="meet" ${S.rank.length === S.start.fronts.length ? "" : "disabled"}>Meet your partner</button>`, S.rank.length > 0);
-  document.querySelectorAll("[data-front]").forEach((b) => (b.onclick = () => {
-    const i = S.rank.indexOf(b.dataset.front);
-    i > -1 ? S.rank.splice(i, 1) : S.rank.push(b.dataset.front);
-    rank();
-  }));
+function stack() {
+  draw(`<h2>Build your stack</h2>
+    <p class="m">Tap what goes first: it becomes the base stone. Your partner builds theirs on their own.</p>
+    ${cairn(S.rank)}
+    <div class="grid">${S.start.fronts.map((f) => {
+      const i = S.rank.indexOf(f.id);
+      return `<button class="opt${i > -1 ? " on" : ""}" data-front="${f.id}"${i > -1 ? " disabled" : ""}>${I(f.icon)}${i > -1 ? i + 1 + ". " : ""}${esc(f.title)}</button>`;
+    }).join("")}</div>
+    <div class="row"><button class="opt c" id="rs">Start over</button>
+      <button class="go" id="meet" ${S.rank.length === S.start.fronts.length ? "" : "disabled"}>Meet your partner</button></div>`, S.rank.length > 0);
+  document.querySelectorAll("[data-front]").forEach((b) => (b.onclick = () => { S.rank.push(b.dataset.front); stack(); }));
+  $("rs").onclick = () => { S.rank = []; stack(); };
   $("meet").onclick = async () => {
     await api("/api/rank", { order: S.rank });
     S.step = "meeting";
@@ -151,117 +242,194 @@ function rank() {
 
 async function meeting() {
   const m = await api(`/api/meeting?person=${S.person}`);
+  S.meet = m;
   if (m.waiting) {
     draw(`<h2>The meeting</h2>
-      ${say(`Your order is saved. Now ${esc(m.partner_name)} needs to rank theirs, without seeing yours.`)}
+      ${cairn(S.rank)}
+      ${say(`Your stack is saved. Now ${esc(m.partner_name)} builds theirs, without seeing yours.`)}
       <button class="go" id="copy">Copy the link for ${esc(m.partner_name)}</button>
-      <button class="ghost" id="again">${esc(m.partner_name)} is done: check again</button>
-      <button class="link" id="redo">Change my order</button>`);
+      <button class="opt c" id="again">${esc(m.partner_name)} is done: check again</button>
+      <button class="link" id="redo">Rebuild my stack</button>`);
     $("copy").onclick = () => {
       navigator.clipboard?.writeText(`${location.origin}/?person=${m.partner}`);
       $("copy").textContent = "Link copied";
     };
     $("again").onclick = meeting;
-    $("redo").onclick = () => { S.step = "rank"; S.rank = []; rank(); };
+    $("redo").onclick = () => { S.step = "stack"; S.rank = []; stack(); };
     return;
   }
-
-  const column = (name, list) => `<div class="col"><b>${esc(name)}</b><ol>${list
-    .map((item, i) => `<li class="${m.same[i] ? "same" : ""}" style="animation-delay:${0.2 + i * 0.35}s">${esc(item)}</li>`)
-    .join("")}</ol></div>`;
-  const ladder = m.ladder.map((r) => `<div class="score"><span>${esc(r.label)}</span><b>${r.score}</b></div>`).join("");
-  const step = m.step;
-  const soon = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
-
+  const ids = (titles) => titles.map((t) => S.start.fronts.find((f) => f.title === t).id);
+  const mine = ids(m.mine), theirs = ids(m.theirs);
   draw(`<h2>The meeting</h2>
-    <div class="row meet">${column(`${m.name} (you)`, m.mine)}${column(m.partner_name, m.theirs)}</div>
+    <div class="cairns"><div>${cairn(mine, m.same)}${esc(m.name)} (you)</div><div>${cairn(theirs, m.same)}${esc(m.partner_name)}</div></div>
+    <p class="m">Stones with a dark outline are in the same place in both stacks.</p>
     ${say(esc(m.insight))}
-    <div class="col"><b>What your plan says moves your score</b>${ladder}${verified("score.top_moves, score.combined_moves")}</div>
-    <div class="col"><p class="kicker">Your first step</p>
-      <h2 style="font-size:21px;margin-top:4px">${esc(step.do)}</h2>
+    ${money()}
+    ${say(`Here is your plan, step by step, in the order that fits you both: ${esc(m.joint[0].title.toLowerCase())} first. For each one, see what happens if nothing changes, and what happens with the plan.`)}
+    <button class="go" id="nx">See your steps</button>`);
+  $("nx").onclick = () => { S.step = "doors"; S.cur = 0; doors(true); };
+}
+
+function doors(fresh) {
+  const joint = S.meet.joint, f = joint[S.cur];
+  const done = joint.slice(0, S.cur + 1).map((x) => x.id);       // this step and the ones before it
+  const dots = joint.map((x, i) => `<i class="${i === S.cur ? "cur" : i < S.cur ? "done" : ""}">${I(i < S.cur ? "check" : x.icon)}</i>`).join("");
+  draw(`<div class="dots">${dots}</div>
+    <p class="m">Step ${S.cur + 1} of ${joint.length}, in the order that fits you both</p>
+    <h2>${esc(f.title)}</h2>
+    <div class="pair">${door("stay", "open dim", f.icon)}${door("plan", "open", f.icon)}</div>
+    <div class="col"><b>Behind door A, if nothing changes</b><p class="m">${esc(f.stay)}</p></div>
+    <div class="col"><b>Behind door B, with your plan</b><p>${esc(f.plan)}</p>${verified(f.source)}</div>
+    <div class="col"><b>Your part</b><p>${esc(f.my_task)}</p></div>
+    ${track(done)}
+    <div class="row"><button class="opt c" id="bk">${I("back")}Back</button>
+      <button class="go" id="nx">${S.cur < joint.length - 1 ? "Next step" : "Your first step"}</button></div>`, !fresh);
+  $("bk").onclick = () => { if (S.cur) { S.cur--; doors(true); } else { S.step = "meeting"; meeting(); } };
+  $("nx").onclick = () => {
+    if (S.cur < joint.length - 1) { S.cur++; doors(true); } else { S.step = "first"; first(); }
+  };
+}
+
+async function first() {
+  if (!S.meet) S.meet = await api(`/api/meeting?person=${S.person}`);
+  const step = S.meet.step;
+  const soon = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  draw(`<h2>Your first step</h2>
+    <div class="col"><p class="pk">Together</p>
+      <h3 style="margin-top:4px">${esc(step.do)}</h3>
       <div class="part"><b>Your part</b>${esc(step.my_task)}</div>
       <div class="part"><b>${esc(step.partner_name)}'s part</b>${esc(step.partner_task)}</div>
       <div class="part"><b>What it costs</b>${esc(step.cost)}</div>
       <div class="part"><b>Ask your advisor</b>${esc(step.ask)}</div>
     </div>
-    <div class="col"><b>After that</b><ol>${m.next
-      .map((n) => `<li>${esc(n.do)}<br><span class="m">Your part: ${esc(n.my_task)}</span></li>`).join("")}</ol>
-      <p class="m">Slide through them on the Road tab.</p></div>
     <p class="m">Which day will you do your part?</p>
     <input type="date" id="day" value="${step.reminder || soon}">
     <a class="go" id="cal">Add my part to my calendar</a>
-    ${say("That's all for today. On the day you picked, open the Road tab: I'll ask how it went.")}
-    <button class="ghost" id="toroad">See your road</button>`);
+    <div class="col"><b>After that</b><ol>${S.meet.next
+      .map((n) => `<li>${esc(n.do)}<br><span class="m">Your part: ${esc(n.my_task)}</span></li>`).join("")}</ol></div>
+    ${say("That's all for today. On the day you picked, open the Tree tab: I'll ask how it went.")}
+    <div class="row"><button class="opt c" id="redoors">Back to the steps</button><button class="go" id="totree">See your tree</button></div>`);
   const link = () => { $("cal").href = `/api/reminder.ics?person=${S.person}&date=${$("day").value}`; };
   $("day").onchange = link; link();
-  $("toroad").onclick = () => { S.tab = 1; render(); };
+  $("redoors").onclick = () => { S.step = "doors"; S.cur = 0; doors(true); };
+  $("totree").onclick = () => { S.tab = 1; render(); };
 }
 
-// ---------- Tab 2: the road and the days after ----------
+// ---------- Tab 2: the tree, and the days after ----------
 
-async function road() {
+async function tree(still) {
   const r = await api(`/api/road?person=${S.person}`);
-  const stops = r.milestones.map((s) => `<div class="stop${s.key ? " key" : ""}"><b>${esc(s.date)}</b><br><span class="m">${esc(s.text)}</span></div>`).join("");
+  const doneIds = Object.keys(r.forks).filter((id) => r.forks[id].done);
+  // The trunk is only coloured up to today: everything after it is still ahead.
+  const event = (icon, date, text, now) => `<div class="tr${now ? " past now" : ""}"><div class="tl">${esc(date)}</div><div class="tn">${I(icon)}</div><div class="tt">${esc(text)}</div></div>`;
+  const fork = (id) => {
+    const f = r.forks[id];
+    // Not done yet: "as now" is still their reality, and the plan branch is dashed (planned).
+    // Done: the plan branch fills in and "as now" fades.
+    return `<div class="tr head">${esc(f.title)}${f.done ? " · done" : ""}</div><div class="tr">
+      <div><div class="lim stay${f.done ? " faded" : " current"}"><b>As now</b>${esc(f.stay)}</div></div>
+      <div class="tn">${I(f.icon)}</div>
+      <div><div class="lim plan${f.done ? " chosen" : " planned"}"><b>${f.done ? "Done" : "With the plan"}</b>${esc(f.plan)}</div></div></div>`;
+  };
+  let trunk = event("flag", "Today", "You are here", true) + `<div class="tr head">Your steps, in your order</div>`;
+  trunk += r.order.filter((id) => id !== "college").map(fork).join("");
+  trunk += event("bell", "Day 3, 30, 60, 90", "Nima checks in");
+  trunk += r.milestones.map((m) => (m.fork ? fork(m.fork) : event(m.icon, m.date, m.text))).join("");
+
+  const now = S.start.scores[[...doneIds].sort().join(",")];
+  const goal = S.start.scores[[...r.order].sort().join(",")];
   S.time = Math.min(S.time, r.points.length - 1);
-  const point = r.points[S.time];
-  draw(`<h2>Your road</h2>
-    <div class="map">${stops}</div>${verified(r.source)}
-    <h2 style="font-size:20px;margin-top:6px">Time travel</h2>
-    <p class="m">Slide to see what I'd tell you on each day.</p>
-    ${r.points.length > 1 ? `<input type="range" min="0" max="${r.points.length - 1}" value="${S.time}" id="time" aria-label="Time">` : ""}
-    <div class="ticks">${r.points.map((p, i) => `<span${i === S.time ? ' class="now"' : ""}>${esc(p.label)}</span>`).join("")}</div>
-    <div id="moment"></div>`);
-  if ($("time")) $("time").oninput = () => { S.time = +$("time").value; road(); };
-  if (point.kind === "checkin") checkin();
-  else if (point.kind === "step") {
-    $("moment").innerHTML = say(`<b>${esc(point.label)}</b><br>${esc(point.intro)}`) +
-      `<div class="col"><h2 style="font-size:20px">${esc(point.do)}</h2>
-        <div class="part"><b>Your part</b>${esc(point.my_task)}</div>
-        <div class="part"><b>${esc(point.partner_name)}'s part</b>${esc(point.partner_task)}</div>
-        <div class="part"><b>What it costs</b>${esc(point.cost)}</div>
-        <div class="part"><b>Ask your advisor</b>${esc(point.ask)}</div></div>`;
-  } else $("moment").innerHTML = say(`<b>${esc(point.label)}</b><br>${esc(point.text)}`);
+  draw(`<h2>Your tree</h2>
+    <p class="m">The trunk is your timeline. At each fork, the dashed branch is your plan: it fills in as you do each step.</p>
+    <div class="col"><div class="sc"><b>Plan score today</b><b>${now}</b></div>
+      <p class="m">With all your steps done, your plan reaches <b>${goal}</b>.</p>${verified("score.top_moves, score.combined_moves")}</div>
+    <div class="tree">${trunk}</div>${verified(r.source)}
+    <div class="col"><div class="tick">${I("bell")}<b>How Nima checks in</b></div>
+      ${r.points.length > 1 ? `<input type="range" min="0" max="${r.points.length - 1}" value="${S.time}" id="time" aria-label="Time">
+      <div class="ticks">${r.points.map((p, i) => `<span${i === S.time ? ' class="now"' : ""}>${esc(p.label)}</span>`).join("")}</div>` : ""}
+      <div id="moment"></div></div>`, still);
+  if ($("time")) $("time").oninput = () => { S.time = +$("time").value; tree(true); };
+  moment(r.points[S.time]);
+}
+
+function moment(point) {
+  if (point.kind === "checkin") return checkin();
+  if (point.kind === "step") {
+    $("moment").innerHTML = `<p style="margin-top:8px"><b>${esc(point.label)}.</b> ${esc(point.intro)}</p>
+      <h3 style="margin-top:6px">${esc(point.do)}</h3>
+      <div class="part"><b>Your part</b>${esc(point.my_task)}</div>
+      <div class="part"><b>${esc(point.partner_name)}'s part</b>${esc(point.partner_task)}</div>
+      <div class="part"><b>What it costs</b>${esc(point.cost)}</div>`;
+    return;
+  }
+  $("moment").innerHTML = `<p style="margin-top:8px"><b>${esc(point.label)}.</b> ${esc(point.text)}</p>`;
 }
 
 async function checkin(reply) {
   const c = reply || await api(`/api/checkin?person=${S.person}`);
-  if (!c.ready) { $("moment").innerHTML = say(`<b>Day 3</b><br>${esc(c.text)}`); return; }
-  let html = say(`<b>Day 3</b><br>Did you do your part? <i>${esc(c.task)}</i>`) + `<p class="m">${esc(c.partner_line)}</p>`;
+  if (!c.ready) { $("moment").innerHTML = `<p style="margin-top:8px"><b>Day 3.</b> ${esc(c.text)}</p>`; return; }
+  let html = `<p style="margin-top:8px"><b>Day 3.</b> Did you do your part? <i>${esc(c.task)}</i></p><p class="m">${esc(c.partner_line)}</p>`;
   if (c.message) html += say(esc(c.message));
   if (c.answered === null || c.answered === undefined) {
-    html += `<div class="row"><button class="opt" data-done="1">Yes, done</button><button class="opt" data-done="0">Not yet</button></div>`;
+    html += `<div class="row"><button class="opt c" data-done="1">Yes, done</button><button class="opt c" data-done="0">Not yet</button></div>`;
   } else if (c.answered === false && !c.blocked) {
     html += `<p class="m">What stopped you?</p>` + c.blockers.map((b) => `<button class="opt" data-blocker="${b.id}">${esc(b.text)}</button>`).join("");
   }
   $("moment").innerHTML = html;
-  document.querySelectorAll("[data-done]").forEach((b) => (b.onclick = async () => checkin(await api("/api/checkin", { done: b.dataset.done === "1" }))));
+  document.querySelectorAll("[data-done]").forEach((b) => (b.onclick = async () => {
+    await api("/api/checkin", { done: b.dataset.done === "1" });
+    tree(true);                                           // a step done by both fills in on the tree
+  }));
   document.querySelectorAll("[data-blocker]").forEach((b) => (b.onclick = async () => checkin(await api("/api/checkin", { blocker: b.dataset.blocker }))));
 }
 
-// ---------- Tab 3: Ask Nima ----------
+// ---------- Tab 3 and the sheet: Nima, your mentor ----------
 
-function ask() {
-  const suggested = S.start.ask.map((a) => `<button class="opt" data-q="${esc(a.q)}">${esc(a.q)}</button>`).join("");
-  const chat = S.chat.map((c) => say(esc(c.q), true) + (c.a
-    ? say(esc(c.a) + (c.checked ? verified(c.source) : c.for_advisor ? `<div class="src">Sent to your advisor</div>` : ""))
-    : say(`<div class="loader"></div>`))).join("");
-  draw(`<h2>Ask Nima</h2>
-    <p class="m">Every number in an answer is checked against your plan before you see it.</p>
-    ${chat}
-    ${suggested}
-    <textarea id="q" rows="2" placeholder="Or ask anything about your plan"></textarea>
-    <button class="go" id="send">Ask</button>`);
+// Suggested questions: about the door on screen if there is one, otherwise general ones.
+function suggestions() {
+  const onDoor = S.tab === 0 && S.step === "doors" && S.meet ? S.meet.joint[S.cur].id : null;   // the step on screen
+  const fits = S.start.ask.filter((a) => (onDoor ? a.about.includes(onDoor) : a.about.length === 0));
+  const extra = S.start.ask.find((a) => a.q === "Why pay the card if we have cash?");
+  return [...new Set([...fits, extra])].slice(0, 3);
+}
+
+function chatHTML() {
+  const lines = S.chat.map((c) => say(esc(c.q), true) + (c.answer === undefined
+    ? say('<div class="loader"></div>')
+    : say(esc(c.answer) + (c.checked ? verified(c.source) : c.for_advisor ? toAdvisor() : "")))).join("");
+  return `<div class="chat" id="chat">${say(esc(S.start.nima_hello))}${lines}</div>
+    <div class="chips">${suggestions().map((a) => `<button data-q="${esc(a.q)}">${esc(a.q)}</button>`).join("")}</div>
+    <div class="compose"><textarea id="ci" rows="2" placeholder="Write your question in your own words"></textarea>
+      <button class="send" id="cs" aria-label="Send">${I("send")}</button></div>`;
+}
+
+function wireChat(redraw) {
   const send = async (question) => {
     if (!question) return;
     const entry = { q: question };
     S.chat.push(entry);
-    ask();
-    const reply = await api("/api/ask", { question });
-    Object.assign(entry, reply, { a: reply.answer });
-    if (S.tab === 2) ask();
+    redraw();
+    Object.assign(entry, await api("/api/ask", { question }));
+    redraw();
   };
   document.querySelectorAll("[data-q]").forEach((b) => (b.onclick = () => send(b.dataset.q)));
-  $("send").onclick = () => send($("q").value.trim());
+  $("cs").onclick = () => send($("ci").value.trim());
+  $("ci").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send($("ci").value.trim()); } };
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+function nimaTab() {
+  if (!S.person) return home();
+  draw(`<h2>Nima, your mentor</h2><p class="m">Always here. Ask in your own words.</p><div class="chatbox">${chatHTML()}</div>`, true);
+  wireChat(nimaTab);
+}
+
+function sheet() {
+  if (!S.sheet || S.tab === 2 || !S.person) { $("sh").innerHTML = ""; return; }
+  $("sh").innerHTML = `<div class="sheet"><div role="dialog" aria-label="Nima">
+    <div class="sh">${I("chat")}<b>Nima</b><button id="xc" aria-label="Close">${I("close")}</button></div>${chatHTML()}</div></div>`;
+  $("xc").onclick = () => { S.sheet = false; sheet(); };
+  wireChat(sheet);
 }
 
 // ---------- Tab 4: advisor summary ----------
@@ -284,21 +452,19 @@ async function advisor() {
     </table>
     <div class="col"><b>Where they differ</b>${s.ready
       ? (s.differ.length ? s.differ.map((d) => `<p>${esc(d)}</p>`).join("") : "<p>They agree on every position.</p>")
-      : "<p class='m'>Waiting for both to rank.</p>"}</div>
+      : "<p class='m'>Waiting for both to build their stack.</p>"}</div>
     ${s.first ? `<div class="col"><b>First step they agreed on</b><p>${esc(s.first.do)}</p>
       <p class="m">${s.reminder ? `Planned for ${esc(s.reminder)}.` : "No date yet."} Their question: ${esc(s.first.ask)}</p></div>` : ""}
-    <div class="col"><b>Open questions</b>${questions.length ? `<ul>${questions.join("")}</ul>` : "<p class='m'>None yet.</p>"}</div>
+    <div class="col"><b>Open questions for you</b>${questions.length ? `<ul>${questions.join("")}</ul>` : "<p class='m'>None yet.</p>"}</div>
     <button class="link" id="reset">Reset the demo</button>`);
-  $("reset").onclick = async () => { await api("/api/reset", {}); location.href = "/"; };
+  $("reset").onclick = resetDemo;
 
   // Nima's note is written by the AI: it arrives a few seconds later, and the table works without it.
   if (!s.ready) return;
   $("note").innerHTML = say(`<div class="loader"></div>Reading what both of them chose…`);
   const n = await api("/api/advisor_note");
   if (!$("note")) return;                                  // they left the tab meanwhile
-  $("note").innerHTML = n.note
-    ? say(`<b>Nima's note</b><br>${esc(n.note)}<div class="src ok">every number checked</div>`)
-    : "";
+  $("note").innerHTML = n.note ? say(`<b>Nima's note</b><br>${esc(n.note)}${verified("every number checked")}`) : "";
 }
 
 start();

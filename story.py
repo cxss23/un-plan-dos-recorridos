@@ -35,7 +35,7 @@ def fronts_by_id():
 
 def _empty_person():
     return {"worry": None, "worry_text": "", "screens": None, "screens_by": "",
-            "order": [], "seen": [], "details": [], "questions": []}
+            "order": [], "doors": {}, "seen": [], "details": [], "questions": []}
 
 
 def _empty_state():
@@ -102,6 +102,23 @@ def score_for(front_ids):
     raise ValueError(f"The plan has no score for this combination: {sorted(moves)}")
 
 
+def all_scores():
+    """The plan's score for every combination of fronts, e.g. {"": 60, "card": 62, "card,life": 73}.
+
+    The browser uses it to move the score bar as doors open. None = the plan has no score for it.
+    """
+    from itertools import combinations
+    ids = sorted(fronts_by_id())
+    result = {}
+    for n in range(len(ids) + 1):
+        for combo in combinations(ids, n):
+            try:
+                result[",".join(combo)] = score_for(set(combo))
+            except ValueError:
+                result[",".join(combo)] = None
+    return result
+
+
 def best_partner(front_id):
     """The other front that, together with this one, gives the highest score."""
     fronts = fronts_by_id()
@@ -152,6 +169,7 @@ def me(person):
         "screens": mine["screens"],
         "screens_by": mine["screens_by"],
         "order": mine["order"],
+        "doors": mine.get("doors", {}),
     }
 
 
@@ -219,6 +237,8 @@ def meeting(person):
         "ladder": score_ladder(),
         "step": step(person, 0),
         "next": [step(person, n) for n in range(1, len(fronts))],
+        "joint": [{**{k: fronts[f][k] for k in ("id", "title", "icon", "stay", "plan", "source")},
+                   "my_task": fronts[f]["tasks"][person]} for f in joint_order()],
     }
 
 
@@ -279,13 +299,23 @@ def checkin(person):
             "message": message, "blockers": scenes["later"]["blockers"]}
 
 
+def forks(person):
+    """Each front as a fork in the tree: what happens as now, what happens with the plan, and whether it is done."""
+    # A step is done when both partners said "yes, done" at the check-in. Today only the first step has a check-in.
+    done = read_state()["household"]["done"]
+    both_done = both_ranked() and len(done) == 2 and all(done.values())
+    first = joint_order()[0] if both_ranked() else None
+    return {f["id"]: {"title": f["title"], "icon": f["icon"], "stay": f["stay_short"], "plan": f["plan_short"],
+                      "done": both_done and f["id"] == first} for f in load_scenes()["fronts"]}
+
+
 def road(person):
     """Milestones from the plan, plus what Nima says at each point in time: every step, in the couple's order."""
     scenes = load_scenes()
     if not both_ranked():
         waiting = {"kind": "text", "text": "Rank what goes first, and your steps will appear here."}
-        return {"milestones": scenes["road"], "source": scenes["road_source"],
-                "points": [{"label": "Today", **waiting}]}
+        return {"milestones": scenes["road"], "source": scenes["road_source"], "forks": forks(person),
+                "order": scenes["front_priority"], "points": [{"label": "Today", **waiting}]}
 
     steps = [step(person, n) for n in range(len(fronts_by_id()))]
     def step_point(label, n, intro):
@@ -297,6 +327,8 @@ def road(person):
     return {
         "milestones": scenes["road"],
         "source": scenes["road_source"],
+        "forks": forks(person),
+        "order": joint_order(),
         "points": [
             step_point("Today", 0, "Your first step. Pick a day to do your part."),
             {"label": "Day 3", "kind": "checkin"},
@@ -325,6 +357,7 @@ def advisor_summary():
             "worry": p["worry_text"] or worries.get(p["worry"]) or "Not answered yet",
             "first": fronts[p["order"][0]]["title"] if p["order"] else "Not ranked yet",
             "order": [fronts[f]["title"] for f in p["order"]],
+            "doors": {fronts[f]["title"]: side for f, side in p.get("doors", {}).items()},
             "details": len(p["details"]),
             "questions": p["questions"],
             "done": state["household"]["done"].get(pid),
@@ -360,7 +393,7 @@ def advisor_note():
     summary = advisor_summary()
     if not summary["ready"]:
         return {"note": None, "reason": "waiting for both to rank"}
-    key = hashlib.md5(json.dumps(summary, sort_keys=True).encode()).hexdigest()
+    key = hashlib.md5(json.dumps([summary, ai.NOTE_VERSION], sort_keys=True).encode()).hexdigest()
     saved = read_state()["household"].get("advisor_note") or {}
     if saved.get("key") == key:
         return {"note": saved["note"], "reason": "saved"}
